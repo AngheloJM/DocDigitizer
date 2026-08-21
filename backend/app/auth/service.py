@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
+from app.auth.permissions import roles_creatable_by
 from app.auth.schemas import UserCreate
 from app.config import get_settings
 from app.redis_client import get_redis_client
@@ -19,6 +20,10 @@ LOGIN_LOCKOUT_SECONDS = 900
 
 
 class TooManyLoginAttemptsError(Exception):
+    pass
+
+
+class InvalidRoleAssignmentError(Exception):
     pass
 
 
@@ -54,11 +59,18 @@ async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def create_user(db: AsyncSession, data: UserCreate) -> User:
+async def create_user(db: AsyncSession, creator: User, data: UserCreate) -> User:
+    allowed_roles = roles_creatable_by(creator)
+    if data.role not in allowed_roles:
+        raise InvalidRoleAssignmentError(
+            f"No tienes permisos para crear usuarios con rol '{data.role}'"
+        )
+
     user = User(
         email=data.email,
         password_hash=hash_password(data.password),
         full_name=data.full_name,
+        role=data.role,
     )
     db.add(user)
     await db.commit()
