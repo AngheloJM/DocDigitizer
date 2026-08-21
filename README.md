@@ -36,11 +36,25 @@ uvicorn app.main:app --reload --port 8001
 
 **Módulo `auth`** (`/api/v1/auth`):
 
+No hay auto-registro público. Las cuentas siempre las crea alguien del staff (`admin` o `super_admin`).
+
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Crea un usuario nuevo (`email`, `password`, `full_name`) |
-| POST | `/api/v1/auth/login` | Devuelve un JWT (`access_token`) dado `email`/`password` |
+| POST | `/api/v1/auth/users` | Crea un usuario nuevo (`email`, `password`, `full_name`, `role`). Requiere ser `admin` o `super_admin` — ver matriz de roles abajo |
+| POST | `/api/v1/auth/login` | Devuelve un JWT (`access_token`) dado `email`/`password`. Bloquea con 429 tras 5 intentos fallidos en 15 min |
 | GET | `/api/v1/auth/me` | Devuelve el usuario autenticado (requiere header `Authorization: Bearer <token>`) |
+
+**Roles y permisos:**
+
+| Acción | `student` | `admin` | `super_admin` |
+|---|---|---|---|
+| Ver/gestionar sus propias carpetas y documentos | ✅ | ✅ | ✅ |
+| Ver/gestionar carpetas y documentos de cualquier estudiante | ❌ | ✅ | ✅ |
+| Crear usuarios `student` | ❌ | ✅ | ✅ |
+| Crear usuarios `admin` | ❌ | ❌ | ✅ |
+| Crear usuarios `super_admin` | ❌ | ❌ | ❌ (nadie, ni siquiera otro `super_admin`, vía API) |
+
+El primer `super_admin` no se crea por API — se inserta una sola vez directamente en la base de datos (bootstrap). A partir de ahí, ese `super_admin` puede crear cuentas `admin`, y los `admin` pueden crear cuentas `student`.
 
 **Módulo `folders`** (`/api/v1/folders`) — requiere header `Authorization: Bearer <token>` en todos los endpoints:
 

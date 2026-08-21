@@ -19,13 +19,18 @@ async def create_folder(data: FolderCreate, db: DbSession, current_user: Current
 
 
 @router.get("", response_model=list[FolderResponse])
-async def list_folders(db: DbSession, current_user: CurrentUser, parent_id: uuid.UUID | None = None):
-    return await service.list_folders(db, current_user.id, parent_id)
+async def list_folders(
+    db: DbSession,
+    current_user: CurrentUser,
+    parent_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
+):
+    return await service.list_folders(db, current_user, parent_id, owner_id)
 
 
 @router.get("/{folder_id}", response_model=FolderResponse)
 async def get_folder(folder_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
-    folder = await service.get_folder(db, folder_id, current_user.id)
+    folder = await service.get_folder(db, folder_id, current_user)
     if folder is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carpeta no encontrada")
     return folder
@@ -35,7 +40,7 @@ async def get_folder(folder_id: uuid.UUID, db: DbSession, current_user: CurrentU
 async def update_folder(
     folder_id: uuid.UUID, data: FolderUpdate, db: DbSession, current_user: CurrentUser
 ):
-    folder = await service.get_folder(db, folder_id, current_user.id)
+    folder = await service.get_folder(db, folder_id, current_user)
     if folder is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carpeta no encontrada")
 
@@ -47,7 +52,7 @@ async def update_folder(
 
 @router.delete("/{folder_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_folder(folder_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
-    folder = await service.get_folder(db, folder_id, current_user.id)
+    folder = await service.get_folder(db, folder_id, current_user)
     if folder is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carpeta no encontrada")
 

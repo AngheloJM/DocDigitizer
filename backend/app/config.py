@@ -1,6 +1,9 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+INSECURE_SECRET_KEYS = {"changeme", "secret", "", "test"}
 
 
 class Settings(BaseSettings):
@@ -8,6 +11,17 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     secret_key: str
+
+    @field_validator("secret_key")
+    @classmethod
+    def secret_key_must_be_strong(cls, value: str) -> str:
+        if value.lower() in INSECURE_SECRET_KEYS or len(value) < 32:
+            raise ValueError(
+                "SECRET_KEY debe ser un valor unico de al menos 32 caracteres, "
+                "no un placeholder. Genera uno con: python -c \"import secrets; "
+                "print(secrets.token_urlsafe(32))\""
+            )
+        return value
 
     database_url: str
 

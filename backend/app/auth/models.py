@@ -11,7 +11,7 @@ from app.database import Base
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("role IN ('student', 'admin_staff', 'admin')", name="ck_users_role"),
+        CheckConstraint("role IN ('student', 'admin', 'super_admin')", name="ck_users_role"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
