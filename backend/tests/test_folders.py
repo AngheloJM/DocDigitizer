@@ -18,7 +18,7 @@ async def db_session():
 @pytest.fixture
 async def test_user(db_session):
     user = User(
-        email=f"{uuid.uuid4()}@test.local",
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
         password_hash=hash_password("irrelevante123"),
         full_name="Usuario de Test",
     )
@@ -73,7 +73,7 @@ async def test_admin_can_access_another_users_folder(db_session, test_user):
     folder = await create_folder(db_session, test_user.id, FolderCreate(name="De un estudiante"))
 
     admin = User(
-        email=f"{uuid.uuid4()}@test.local",
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
         password_hash=hash_password("irrelevante123"),
         full_name="Admin de Test",
         role="admin",
@@ -96,7 +96,7 @@ async def test_student_cannot_access_another_users_folder(db_session, test_user)
     folder = await create_folder(db_session, test_user.id, FolderCreate(name="De un estudiante"))
 
     other_student = User(
-        email=f"{uuid.uuid4()}@test.local",
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
         password_hash=hash_password("irrelevante123"),
         full_name="Otro Estudiante",
     )

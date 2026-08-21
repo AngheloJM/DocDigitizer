@@ -1,7 +1,16 @@
 from app.auth.models import User
 
-PRIVILEGED_ROLES = {"admin", "admin_staff"}
+STAFF_ROLES = {"admin", "super_admin"}
+
+ROLES_CREATABLE_BY = {
+    "admin": {"student"},
+    "super_admin": {"student", "admin"},
+}
 
 
-def is_privileged(user: User) -> bool:
-    return user.role in PRIVILEGED_ROLES
+def is_staff(user: User) -> bool:
+    return user.role in STAFF_ROLES
+
+
+def roles_creatable_by(user: User) -> set[str]:
+    return ROLES_CREATABLE_BY.get(user.role, set())

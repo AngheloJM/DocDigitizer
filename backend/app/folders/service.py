@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.auth.permissions import is_privileged
+from app.auth.permissions import is_staff
 from app.folders.models import Folder
 from app.folders.schemas import FolderCreate, FolderUpdate
 
@@ -21,7 +21,7 @@ async def _get_owned_folder(db: AsyncSession, folder_id: uuid.UUID, owner_user_i
 
 
 async def get_folder(db: AsyncSession, folder_id: uuid.UUID, requesting_user: User) -> Folder | None:
-    if is_privileged(requesting_user):
+    if is_staff(requesting_user):
         result = await db.execute(select(Folder).where(Folder.id == folder_id))
         return result.scalar_one_or_none()
     return await _get_owned_folder(db, folder_id, requesting_user.id)
@@ -34,7 +34,7 @@ async def list_folders(
     owner_id: uuid.UUID | None = None,
 ) -> list[Folder]:
     target_user_id = requesting_user.id
-    if is_privileged(requesting_user) and owner_id is not None:
+    if is_staff(requesting_user) and owner_id is not None:
         target_user_id = owner_id
 
     result = await db.execute(
