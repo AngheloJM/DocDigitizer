@@ -42,7 +42,17 @@ uvicorn app.main:app --reload --port 8001
 | POST | `/api/v1/auth/login` | Devuelve un JWT (`access_token`) dado `email`/`password` |
 | GET | `/api/v1/auth/me` | Devuelve el usuario autenticado (requiere header `Authorization: Bearer <token>`) |
 
-El resto de módulos (`documents`, `folders`, `processing`) se van agregando por rama (`backend/<modulo>`) y se documentan aquí a medida que se integran a `main`.
+**Módulo `folders`** (`/api/v1/folders`) — requiere header `Authorization: Bearer <token>` en todos los endpoints:
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/folders` | Crea una carpeta (`name`, `description` opcional, `parent_id` opcional para anidarla) |
+| GET | `/api/v1/folders` | Lista carpetas del usuario; con `?parent_id=<id>` lista las subcarpetas de esa carpeta, sin el parámetro lista las carpetas raíz |
+| GET | `/api/v1/folders/{folder_id}` | Obtiene una carpeta por id |
+| PATCH | `/api/v1/folders/{folder_id}` | Actualiza nombre, descripción o mueve la carpeta a otro padre (bloquea ciclos: no se puede mover una carpeta dentro de si misma o de su propia subcarpeta) |
+| DELETE | `/api/v1/folders/{folder_id}` | Elimina la carpeta |
+
+El resto de módulos (`documents`, `processing`) se van agregando por rama (`backend/<modulo>`) y se documentan aquí a medida que se integran a `main`.
 
 ### Nota sobre el puerto
 
