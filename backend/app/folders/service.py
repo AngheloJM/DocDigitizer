@@ -3,6 +3,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import User
+from app.auth.permissions import is_privileged
 from app.folders.models import Folder
 from app.folders.schemas import FolderCreate, FolderUpdate
 
@@ -11,16 +13,32 @@ class InvalidParentError(Exception):
     pass
 
 
-async def get_folder(db: AsyncSession, folder_id: uuid.UUID, user_id: uuid.UUID) -> Folder | None:
+async def _get_owned_folder(db: AsyncSession, folder_id: uuid.UUID, owner_user_id: uuid.UUID) -> Folder | None:
     result = await db.execute(
-        select(Folder).where(Folder.id == folder_id, Folder.user_id == user_id)
+        select(Folder).where(Folder.id == folder_id, Folder.user_id == owner_user_id)
     )
     return result.scalar_one_or_none()
 
 
-async def list_folders(db: AsyncSession, user_id: uuid.UUID, parent_id: uuid.UUID | None) -> list[Folder]:
+async def get_folder(db: AsyncSession, folder_id: uuid.UUID, requesting_user: User) -> Folder | None:
+    if is_privileged(requesting_user):
+        result = await db.execute(select(Folder).where(Folder.id == folder_id))
+        return result.scalar_one_or_none()
+    return await _get_owned_folder(db, folder_id, requesting_user.id)
+
+
+async def list_folders(
+    db: AsyncSession,
+    requesting_user: User,
+    parent_id: uuid.UUID | None,
+    owner_id: uuid.UUID | None = None,
+) -> list[Folder]:
+    target_user_id = requesting_user.id
+    if is_privileged(requesting_user) and owner_id is not None:
+        target_user_id = owner_id
+
     result = await db.execute(
-        select(Folder).where(Folder.user_id == user_id, Folder.parent_id == parent_id)
+        select(Folder).where(Folder.user_id == target_user_id, Folder.parent_id == parent_id)
     )
     return list(result.scalars().all())
 
@@ -36,14 +54,14 @@ async def _is_descendant(db: AsyncSession, folder_id: uuid.UUID, candidate_ances
 
 
 async def _validate_parent(
-    db: AsyncSession, user_id: uuid.UUID, parent_id: uuid.UUID | None, folder_id: uuid.UUID | None
+    db: AsyncSession, owner_user_id: uuid.UUID, parent_id: uuid.UUID | None, folder_id: uuid.UUID | None
 ) -> None:
     if parent_id is None:
         return
 
-    parent = await get_folder(db, parent_id, user_id)
+    parent = await _get_owned_folder(db, parent_id, owner_user_id)
     if parent is None:
-        raise InvalidParentError("La carpeta padre no existe o no te pertenece")
+        raise InvalidParentError("La carpeta padre no existe o no pertenece al mismo propietario")
 
     if folder_id is not None:
         if parent_id == folder_id:
@@ -52,13 +70,13 @@ async def _validate_parent(
             raise InvalidParentError("No se puede mover una carpeta dentro de su propia subcarpeta")
 
 
-async def create_folder(db: AsyncSession, user_id: uuid.UUID, data: FolderCreate) -> Folder:
-    await _validate_parent(db, user_id, data.parent_id, folder_id=None)
+async def create_folder(db: AsyncSession, owner_user_id: uuid.UUID, data: FolderCreate) -> Folder:
+    await _validate_parent(db, owner_user_id, data.parent_id, folder_id=None)
 
     folder = Folder(
         name=data.name,
         description=data.description,
-        user_id=user_id,
+        user_id=owner_user_id,
         parent_id=data.parent_id,
     )
     db.add(folder)
