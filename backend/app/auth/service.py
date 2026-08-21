@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ def decode_access_token(token: str) -> uuid.UUID | None:
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
         return uuid.UUID(payload["sub"])
-    except (JWTError, KeyError, ValueError):
+    except (jwt.InvalidTokenError, KeyError, ValueError):
         return None
 
 

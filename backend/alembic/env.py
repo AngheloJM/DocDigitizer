@@ -7,7 +7,7 @@ from sqlalchemy import pool
 
 from app.config import get_settings
 from app.database import Base
-from app.auth import models as auth_models  # noqa: F401 — registra User en Base.metadata
+from app.auth import models as auth_models  # noqa: F401
 
 config = context.config
 settings = get_settings()
