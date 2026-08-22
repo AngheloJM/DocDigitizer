@@ -41,8 +41,11 @@ No hay auto-registro público. Las cuentas siempre las crea alguien del staff (`
 | Método | Ruta | Descripción |
 |---|---|---|
 | POST | `/api/v1/auth/users` | Crea un usuario nuevo (`email`, `password`, `full_name`, `role`). Requiere ser `admin` o `super_admin` — ver matriz de roles abajo |
-| POST | `/api/v1/auth/login` | Devuelve un JWT (`access_token`) dado `email`/`password`. Bloquea con 429 tras 5 intentos fallidos en 15 min |
+| POST | `/api/v1/auth/login` | `{email, password}` → `{access_token, refresh_token, token_type, expires_in}`. Bloquea con 429 tras 5 intentos fallidos en 15 min |
+| POST | `/api/v1/auth/refresh` | `{refresh_token}` → nuevo `{access_token, refresh_token, ...}`. El refresh token es de un solo uso (rotación): una vez usado, queda invalido |
 | GET | `/api/v1/auth/me` | Devuelve el usuario autenticado (requiere header `Authorization: Bearer <token>`) |
+
+El `access_token` (JWT) dura 15 minutos. El `refresh_token` dura 7 días — el frontend debe guardarlo y usarlo contra `/auth/refresh` para renovar la sesión sin pedir contraseña de nuevo, y actualizar ambos tokens guardados cada vez (rotación).
 
 **Roles y permisos:**
 
