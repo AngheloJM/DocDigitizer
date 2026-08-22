@@ -37,7 +37,8 @@ class Settings(BaseSettings):
     minio_secure: bool = False
 
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60
+    jwt_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
 
     cors_allowed_origins: list[str] = ["http://localhost:3000"]
 

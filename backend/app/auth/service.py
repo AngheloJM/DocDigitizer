@@ -1,3 +1,4 @@
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -46,6 +47,35 @@ def decode_access_token(token: str) -> uuid.UUID | None:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
         return uuid.UUID(payload["sub"])
     except (jwt.InvalidTokenError, KeyError, ValueError):
+        return None
+
+
+def _refresh_token_key(token: str) -> str:
+    return f"refresh_token:{token}"
+
+
+async def create_refresh_token(user_id: uuid.UUID) -> str:
+    token = secrets.token_urlsafe(32)
+    redis = get_redis_client()
+    await redis.set(
+        _refresh_token_key(token),
+        str(user_id),
+        ex=timedelta(days=settings.refresh_token_expire_days),
+    )
+    return token
+
+
+async def rotate_refresh_token(token: str) -> uuid.UUID | None:
+    redis = get_redis_client()
+    key = _refresh_token_key(token)
+    user_id_raw = await redis.get(key)
+    if user_id_raw is None:
+        return None
+
+    await redis.delete(key)
+    try:
+        return uuid.UUID(user_id_raw)
+    except ValueError:
         return None
 
 

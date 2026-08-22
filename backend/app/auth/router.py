@@ -2,11 +2,13 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.auth import service
 from app.auth.permissions import is_staff
-from app.auth.schemas import LoginRequest, TokenResponse, UserCreate, UserResponse
+from app.auth.schemas import LoginRequest, RefreshRequest, TokenResponse, UserCreate, UserResponse
 from app.auth.service import InvalidRoleAssignmentError, TooManyLoginAttemptsError
+from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
 
 router = APIRouter()
+settings = get_settings()
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -43,8 +45,38 @@ async def login(data: LoginRequest, db: DbSession):
         )
 
     await service.reset_login_attempts(data.email)
-    token = service.create_access_token(user.id)
-    return TokenResponse(access_token=token)
+    access_token = service.create_access_token(user.id)
+    refresh_token = await service.create_refresh_token(user.id)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=settings.jwt_expire_minutes * 60,
+    )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(data: RefreshRequest, db: DbSession):
+    user_id = await service.rotate_refresh_token(data.refresh_token)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token invalido o expirado",
+        )
+
+    user = await service.get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token invalido o expirado",
+        )
+
+    access_token = service.create_access_token(user.id)
+    new_refresh_token = await service.create_refresh_token(user.id)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        expires_in=settings.jwt_expire_minutes * 60,
+    )
 
 
 @router.get("/me", response_model=UserResponse)
