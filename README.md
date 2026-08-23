@@ -69,7 +69,22 @@ El primer `super_admin` no se crea por API — se inserta una sola vez directame
 | PATCH | `/api/v1/folders/{folder_id}` | Actualiza nombre, descripción o mueve la carpeta a otro padre (bloquea ciclos: no se puede mover una carpeta dentro de si misma o de su propia subcarpeta) |
 | DELETE | `/api/v1/folders/{folder_id}` | Elimina la carpeta |
 
-El resto de módulos (`documents`, `processing`) se van agregando por rama (`backend/<modulo>`) y se documentan aquí a medida que se integran a `main`.
+**Módulo `documents`** (`/api/v1/documents`) — requiere `Authorization: Bearer <token>`:
+
+⚠️ **Alcance actual**: estos endpoints manejan solo los **metadatos** del documento (título, tipo, carpeta, estado). Todavía no se puede subir el archivo real (eso requiere el módulo `storage`/MinIO) ni se genera el PDF/OCR (eso requiere `processing`/`worker`). Por ahora todo documento creado queda en estado `pending` sin archivo asociado — esto se completa cuando esos módulos se integren.
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/v1/documents` | Crea el registro de un documento (`title`, `description` opcional, `doc_type` opcional, `folder_id` opcional) |
+| GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type` |
+| GET | `/api/v1/documents/{id}` | Detalle completo (incluye `original_image`, `generated_pdf`, `extracted_text` si ya existen) |
+| GET | `/api/v1/documents/{id}/status` | Solo el estado — pensado para polling ligero desde el frontend |
+| PATCH | `/api/v1/documents/{id}` | Actualiza título, descripción, tipo o carpeta |
+| DELETE | `/api/v1/documents/{id}` | Elimina el registro |
+
+Estados posibles: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Todas las acciones relevantes (`upload`, `view`, `delete`) quedan registradas en `audit_log`.
+
+El resto de módulos (`storage`, `processing`) se van agregando por rama (`backend/<modulo>`) y se documentan aquí a medida que se integran a `main`.
 
 ### Nota sobre el puerto
 
