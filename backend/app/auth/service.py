@@ -28,6 +28,22 @@ class InvalidRoleAssignmentError(Exception):
     pass
 
 
+class InvalidEmailDomainError(Exception):
+    pass
+
+
+def validate_email_domain(email: str) -> None:
+    if not settings.allowed_email_domains:
+        return
+
+    domain = email.rsplit("@", 1)[-1].lower()
+    if domain not in {d.lower() for d in settings.allowed_email_domains}:
+        allowed = ", ".join(settings.allowed_email_domains)
+        raise InvalidEmailDomainError(
+            f"El email debe pertenecer a uno de estos dominios institucionales: {allowed}"
+        )
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -95,6 +111,8 @@ async def create_user(db: AsyncSession, creator: User, data: UserCreate) -> User
         raise InvalidRoleAssignmentError(
             f"No tienes permisos para crear usuarios con rol '{data.role}'"
         )
+
+    validate_email_domain(data.email)
 
     user = User(
         email=data.email,

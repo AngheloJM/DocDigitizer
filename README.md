@@ -59,6 +59,8 @@ El `access_token` (JWT) dura 15 minutos. El `refresh_token` dura 7 días — el 
 | Crear usuarios `admin` | ❌ | ❌ | ✅ |
 | Crear usuarios `super_admin` | ❌ | ❌ | ❌ (nadie, ni siquiera otro `super_admin`, vía API) |
 
+**Dominios de email permitidos**: por defecto (`ALLOWED_EMAIL_DOMAINS=[]` en `.env`) se acepta cualquier dominio de email, útil para desarrollo. En producción, configúralo con los dominios institucionales reales, por ejemplo `ALLOWED_EMAIL_DOMAINS=["utepsa.edu.bo"]` — a partir de ahí, `POST /auth/users` rechaza con `400` cualquier email fuera de esos dominios.
+
 El primer `super_admin` no se crea por API. Se crea con un script (evita tener que escribir el SQL/hash de contraseña a mano):
 
 ```powershell

@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.auth import service
 from app.auth.permissions import is_staff
 from app.auth.schemas import LoginRequest, RefreshRequest, TokenResponse, UserCreate, UserResponse
-from app.auth.service import InvalidRoleAssignmentError, TooManyLoginAttemptsError
+from app.auth.service import InvalidEmailDomainError, InvalidRoleAssignmentError, TooManyLoginAttemptsError
 from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
 
@@ -27,6 +27,8 @@ async def create_user(data: UserCreate, db: DbSession, current_user: CurrentUser
         return await service.create_user(db, current_user, data)
     except InvalidRoleAssignmentError as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+    except InvalidEmailDomainError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
 @router.post("/login", response_model=TokenResponse)
