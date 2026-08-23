@@ -75,7 +75,7 @@ El primer `super_admin` no se crea por API — se inserta una sola vez directame
 
 ✅ **El flujo completo ya funciona**: subir el archivo encola automáticamente el procesamiento (OCR + restauración de imagen + generación de PDF/A) en el worker de Celery. El documento pasa de `pending` → `processing` → `completed`, con `generated_pdf` y `extracted_text` ya llenos.
 
-Para que el procesamiento corra, el worker debe estar levantado: `docker compose up -d worker` (usa Tesseract + Ghostscript instalados dentro del contenedor — no requieren instalarse en tu máquina).
+Para que el procesamiento corra, el worker debe estar levantado: `docker compose up -d worker-ocr-pdf` (usa Tesseract + Ghostscript instalados dentro del contenedor — no requieren instalarse en tu máquina).
 
 | Método | Ruta | Descripción |
 |---|---|---|

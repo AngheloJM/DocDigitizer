@@ -107,7 +107,7 @@ Estados posibles de `status`: `pending` → `processing` → `completed` (o `fai
 
 - **Búsqueda full-text** (`/search`) — la base de datos ya lo soporta (probado con `ts_rank`), pero el endpoint HTTP no existe aún.
 
-Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
+Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 ## 5. Errores comunes a manejar en el frontend
 

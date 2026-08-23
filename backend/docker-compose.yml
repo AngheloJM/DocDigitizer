@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    container_name: docdigitizer-postgres-metadatos-y-rutas
     environment:
       POSTGRES_DB: docdigitizer
       POSTGRES_USER: postgres
@@ -12,11 +13,13 @@ services:
 
   redis:
     image: redis:7
+    container_name: docdigitizer-redis-cola-tareas
     ports:
       - "6379:6379"
 
   minio:
     image: minio/minio
+    container_name: docdigitizer-minio-archivos-pdf-imagenes
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-changeme}
@@ -27,10 +30,11 @@ services:
     volumes:
       - minio_data:/data
 
-  worker:
+  worker-ocr-pdf:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: docdigitizer-celery-worker-ocr-pdf
     env_file:
       - .env
     environment:
