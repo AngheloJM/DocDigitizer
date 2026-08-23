@@ -2,6 +2,7 @@ import io
 
 import cv2
 import numpy as np
+import pymupdf
 from PIL import Image, ImageOps
 
 from app.processing.binarizer import binarize
@@ -12,24 +13,41 @@ from app.processing.pdf_generator import generate_pdf_from_image
 from app.processing.perspective import correct_perspective
 
 MAX_DIMENSION_PX = 3000
+PDF_RENDER_DPI = 300
 
 
-def _normalize(image_bytes: bytes) -> np.ndarray:
-    with Image.open(io.BytesIO(image_bytes)) as pil_image:
-        pil_image = ImageOps.exif_transpose(pil_image)
+def _pdf_first_page_to_pil_image(pdf_bytes: bytes) -> tuple[Image.Image, int]:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as pdf:
+        page_count = pdf.page_count
+        pixmap = pdf[0].get_pixmap(dpi=PDF_RENDER_DPI)
+        mode = "RGBA" if pixmap.alpha else "RGB"
+        pil_image = Image.frombytes(mode, (pixmap.width, pixmap.height), pixmap.samples)
+        return pil_image, page_count
+
+
+def _normalize(file_bytes: bytes, file_format: str) -> tuple[np.ndarray, int]:
+    pages_in_source = 1
+
+    if file_format == "pdf":
+        pil_image, pages_in_source = _pdf_first_page_to_pil_image(file_bytes)
         pil_image = pil_image.convert("RGB")
+    else:
+        with Image.open(io.BytesIO(file_bytes)) as opened:
+            pil_image = ImageOps.exif_transpose(opened)
+            pil_image = pil_image.convert("RGB")
 
-        largest_side = max(pil_image.width, pil_image.height)
-        if largest_side > MAX_DIMENSION_PX:
-            scale = MAX_DIMENSION_PX / largest_side
-            new_size = (int(pil_image.width * scale), int(pil_image.height * scale))
-            pil_image = pil_image.resize(new_size, Image.LANCZOS)
+    largest_side = max(pil_image.width, pil_image.height)
+    if largest_side > MAX_DIMENSION_PX:
+        scale = MAX_DIMENSION_PX / largest_side
+        new_size = (int(pil_image.width * scale), int(pil_image.height * scale))
+        pil_image = pil_image.resize(new_size, Image.LANCZOS)
 
-        return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+    image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+    return image, pages_in_source
 
 
-def process_image_bytes(image_bytes: bytes) -> dict:
-    image = _normalize(image_bytes)
+def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
+    image, pages_in_source = _normalize(file_bytes, file_format)
 
     image, perspective_meta = correct_perspective(image)
     image, denoise_meta = denoise(image)
@@ -44,6 +62,9 @@ def process_image_bytes(image_bytes: bytes) -> dict:
         "pdf_bytes": pdf_bytes,
         "ocr_result": ocr_result,
         "pipeline_metadata": {
+            "source_format": file_format,
+            "pages_in_source": pages_in_source,
+            "pages_processed": 1,
             "perspective": perspective_meta,
             "denoise": denoise_meta,
             "binarize": binarize_meta,
