@@ -1,7 +1,7 @@
 import math
 import uuid
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, status
 
 from app.dependencies import CurrentUser, DbSession
 from app.documents import service
@@ -12,10 +12,15 @@ from app.documents.schemas import (
     DocumentResponse,
     DocumentStatusResponse,
     DocumentUpdate,
+    DocumentUploadResponse,
 )
-from app.documents.service import InvalidFolderError
+from app.documents.service import DocumentAlreadyHasFileError, InvalidFileError, InvalidFolderError
 
 router = APIRouter()
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
 
 
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -28,12 +33,76 @@ async def create_document(data: DocumentCreate, db: DbSession, current_user: Cur
     await service.log_audit_action(
         db,
         current_user.id,
-        action="upload",
+        action="register",
         document_id=document.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     return document
+
+
+@router.post("/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def upload_document(
+    db: DbSession,
+    current_user: CurrentUser,
+    request: Request,
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: str | None = Form(None),
+    doc_type: str | None = Form(None),
+    folder_id: uuid.UUID | None = Form(None),
+):
+    file_bytes = await file.read()
+    data = DocumentCreate(title=title, description=description, doc_type=doc_type, folder_id=folder_id)
+
+    try:
+        document = await service.create_document_with_file(db, current_user.id, data, file_bytes, file.filename)
+    except InvalidFolderError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except InvalidFileError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+    await service.log_audit_action(
+        db,
+        current_user.id,
+        action="upload",
+        document_id=document.id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return DocumentUploadResponse(document_id=document.id, status=document.status)
+
+
+@router.post("/{document_id}/upload", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def upload_document_file(
+    document_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+    request: Request,
+    file: UploadFile = File(...),
+):
+    document = await service.get_document(db, document_id, current_user)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
+
+    file_bytes = await file.read()
+
+    try:
+        await service.attach_file_to_document(db, document, file_bytes, file.filename)
+    except InvalidFileError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except DocumentAlreadyHasFileError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
+
+    await service.log_audit_action(
+        db,
+        current_user.id,
+        action="upload",
+        document_id=document.id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return DocumentUploadResponse(document_id=document.id, status=document.status)
 
 
 @router.get("", response_model=DocumentListResponse)
@@ -67,7 +136,7 @@ async def get_document(document_id: uuid.UUID, db: DbSession, current_user: Curr
         current_user.id,
         action="view",
         document_id=document.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
 
@@ -112,7 +181,7 @@ async def delete_document(document_id: uuid.UUID, db: DbSession, current_user: C
         current_user.id,
         action="delete",
         document_id=document.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
     await service.delete_document(db, document)
