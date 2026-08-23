@@ -59,7 +59,15 @@ El `access_token` (JWT) dura 15 minutos. El `refresh_token` dura 7 días — el 
 | Crear usuarios `admin` | ❌ | ❌ | ✅ |
 | Crear usuarios `super_admin` | ❌ | ❌ | ❌ (nadie, ni siquiera otro `super_admin`, vía API) |
 
-El primer `super_admin` no se crea por API — se inserta una sola vez directamente en la base de datos (bootstrap). A partir de ahí, ese `super_admin` puede crear cuentas `admin`, y los `admin` pueden crear cuentas `student`.
+El primer `super_admin` no se crea por API. Se crea con un script (evita tener que escribir el SQL/hash de contraseña a mano):
+
+```powershell
+cd backend
+.venv\Scripts\Activate.ps1
+python scripts\bootstrap_super_admin.py --email admin@utepsa.edu.bo --full-name "Nombre Completo"
+```
+
+Pide la contraseña de forma interactiva (no queda en el historial de la terminal). Si ya existe un `super_admin`, se niega a crear otro salvo que se pase `--force`. A partir de ahí, ese `super_admin` puede crear cuentas `admin`, y los `admin` pueden crear cuentas `student`.
 
 **Módulo `folders`** (`/api/v1/folders`) — requiere header `Authorization: Bearer <token>` en todos los endpoints:
 
