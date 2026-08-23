@@ -59,6 +59,20 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
+      - name: Levantar MinIO
+        run: |
+          docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER=ci-access-key \
+            -e MINIO_ROOT_PASSWORD=ci-secret-key \
+            minio/minio server /data --console-address ":9001"
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live; then
+              echo "MinIO listo"
+              break
+            fi
+            sleep 1
+          done
+
       - name: Instalar dependencias
         working-directory: backend
         run: pip install -r requirements.txt
