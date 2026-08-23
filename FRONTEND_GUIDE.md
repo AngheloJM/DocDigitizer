@@ -68,28 +68,44 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
-## 3. Documentos (solo metadatos por ahora)
+## 3. Documentos
 
-⚠️ Todavía **no se puede subir el archivo real**. Estos endpoints sirven para construir la UI de listado/organización mientras se conecta el módulo de subida (`storage`). Un documento creado queda en estado `pending` sin imagen ni PDF asociado.
+Ya se puede subir el archivo real (imagen o PDF). Lo que **todavía no existe** es el procesamiento (OCR, restauración de imagen, generación del PDF mejorado) — eso depende del módulo `processing`, pendiente. Por ahora, todo documento con archivo queda en `pending`, con `original_image` lleno pero `generated_pdf`/`extracted_text` en `null`.
 
+Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB.
+
+Hay **tres formas** de crear/completar un documento, según el flujo de tu UI:
+
+**A. Todo en un solo paso** (cuando ya tienes el archivo listo, ej. una foto recién tomada):
 ```
-POST   /documents             { title, description?, doc_type?, folder_id? }  → 201
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=          → 200 { items, total, page, pages }
-GET    /documents/{id}                                                         → 200 (incluye original_image/generated_pdf/extracted_text si existen)
-GET    /documents/{id}/status                                                  → 200 { status, processed_at }
-PATCH  /documents/{id}         { title?, description?, doc_type?, folder_id? }  → 200
-DELETE /documents/{id}                                                         → 204
+POST /documents/upload
+multipart: file=<archivo>, title="...", doc_type? , folder_id?
+
+→ 202 { document_id, task_id: null, status: "pending" }
 ```
 
-Estados posibles de `status`: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Puedes ya construir:
-- El listado paginado con filtros.
-- La vista de detalle (mostrará los campos de imagen/PDF/texto como `null` hasta que exista `storage`).
-- Polling simple sobre `/documents/{id}/status` para cuando sí haya procesamiento real.
+**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa):
+```
+1) POST /documents          { title, description?, doc_type?, folder_id? }   → 201, documento sin archivo
+2) POST /documents/{id}/upload   multipart: file=<archivo>                    → 202 { document_id, status }
+```
+Intentar subir un segundo archivo al mismo documento responde `409` (un documento solo tiene un archivo original).
+
+**Resto de endpoints:**
+```
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=  → 200 { items, total, page, pages }
+GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
+GET    /documents/{id}/status                                           → 200 { status, processed_at }
+PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id? }  → 200
+DELETE /documents/{id}                                                  → 204 (borra tambien el archivo de MinIO)
+```
+
+Estados posibles de `status`: `pending`, `processing`, `completed`, `failed`, `reprocessing`.
 
 ## 4. Qué NO está listo todavía
 
-- **Subir el archivo real** (`storage`/MinIO) — el botón de "subir foto/escaneo" no tiene backend todavía.
-- **OCR y generación de PDF** (`processing`/`worker`) — depende de lo anterior.
+- **OCR y generación del PDF mejorado** (`processing`/`worker`) — el archivo original ya se guarda, pero la restauración de imagen y el texto buscable todavía no se generan.
+- **Descargar el archivo** (`GET /documents/{id}/download`) — el archivo ya está en MinIO, pero el endpoint de descarga aún no está expuesto.
 - **Búsqueda full-text** (`/search`) — la base de datos ya lo soporta (probado), pero el endpoint HTTP no existe aún.
 
 ## 5. Errores comunes a manejar en el frontend
