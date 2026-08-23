@@ -60,3 +60,15 @@ class DocumentDetailResponse(DocumentResponse):
     original_image: OriginalImageResponse | None = None
     generated_pdf: GeneratedPdfResponse | None = None
     extracted_text: ExtractedTextResponse | None = None
+
+
+class DocumentStatusResponse(BaseModel):
+    status: str
+    processed_at: datetime | None = None
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentResponse]
+    total: int
+    page: int
+    pages: int

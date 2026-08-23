@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.permissions import is_staff
-from app.documents.models import AuditLog, Document
+from app.documents.models import AuditLog, Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.folders.models import Folder
 
@@ -99,6 +99,29 @@ async def update_document(db: AsyncSession, document: Document, data: DocumentUp
     await db.commit()
     await db.refresh(document)
     return document
+
+
+async def get_document_relations(
+    db: AsyncSession, document_id: uuid.UUID
+) -> tuple[OriginalImage | None, GeneratedPdf | None, ExtractedText | None]:
+    original_image = (
+        await db.execute(select(OriginalImage).where(OriginalImage.document_id == document_id))
+    ).scalar_one_or_none()
+
+    generated_pdf = (
+        await db.execute(
+            select(GeneratedPdf)
+            .where(GeneratedPdf.document_id == document_id)
+            .order_by(GeneratedPdf.version.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    extracted_text = (
+        await db.execute(select(ExtractedText).where(ExtractedText.document_id == document_id))
+    ).scalar_one_or_none()
+
+    return original_image, generated_pdf, extracted_text
 
 
 async def delete_document(db: AsyncSession, document: Document) -> None:
