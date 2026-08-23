@@ -1,6 +1,7 @@
 import hashlib
 import io
 import uuid
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -281,3 +282,57 @@ async def log_audit_action(
     )
     db.add(entry)
     await db.commit()
+
+
+async def search_documents(
+    db: AsyncSession,
+    requesting_user: User,
+    q: str,
+    doc_type: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    folder_id: uuid.UUID | None = None,
+    owner_id: uuid.UUID | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> tuple[list[tuple[Document, str, float]], int]:
+    target_user_id = requesting_user.id
+    if is_staff(requesting_user) and owner_id is not None:
+        target_user_id = owner_id
+
+    tsquery = func.plainto_tsquery("spanish", q)
+    matches = ExtractedText.tsv_content.op("@@")(tsquery)
+
+    base_query = (
+        select(Document, ExtractedText)
+        .join(ExtractedText, ExtractedText.document_id == Document.id)
+        .where(Document.user_id == target_user_id, matches)
+    )
+
+    if doc_type is not None:
+        base_query = base_query.where(Document.doc_type == doc_type)
+    if folder_id is not None:
+        base_query = base_query.where(Document.folder_id == folder_id)
+    if date_from is not None:
+        base_query = base_query.where(Document.created_at >= date_from)
+    if date_to is not None:
+        base_query = base_query.where(Document.created_at <= date_to)
+
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_query)).scalar_one()
+
+    ranked_query = (
+        base_query.add_columns(
+            func.ts_rank(ExtractedText.tsv_content, tsquery).label("rank"),
+            func.ts_headline(
+                "spanish", ExtractedText.raw_text, tsquery, "MaxFragments=2"
+            ).label("highlight"),
+        )
+        .order_by(func.ts_rank(ExtractedText.tsv_content, tsquery).desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+
+    rows = (await db.execute(ranked_query)).all()
+    results = [(row.Document, row.highlight, row.rank) for row in rows]
+    return results, total
