@@ -86,14 +86,16 @@ multipart: file=<archivo>, title="...", doc_type? , folder_id?
 
 **B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa):
 ```
-1) POST /documents          { title, description?, doc_type?, folder_id? }   → 201, documento sin archivo
+1) POST /documents          { title, description?, doc_type?, folder_id?, physical_shelf?, physical_division?, physical_column?, physical_volume? }   → 201, documento sin archivo
 2) POST /documents/{id}/upload   multipart: file=<archivo>                    → 202 { document_id, status }
 ```
 Intentar subir un segundo archivo al mismo documento responde `409` (un documento solo tiene un archivo original).
 
+Los campos `physical_*` son opcionales y sirven para catalogar dónde está guardado físicamente el documento (estante/división/columna/tomo) — útil si el staff quiere registrar el inventario antes de escanear cada uno. Se pueden pasar en la creación o agregar después con `PATCH`.
+
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)

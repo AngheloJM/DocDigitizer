@@ -127,12 +127,13 @@ async def list_documents(
     folder_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     doc_type: str | None = None,
+    physical_shelf: str | None = None,
     owner_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
 ):
     items, total = await service.list_documents(
-        db, current_user, folder_id, status_filter, doc_type, owner_id, page, per_page
+        db, current_user, folder_id, status_filter, doc_type, physical_shelf, owner_id, page, per_page
     )
     pages = math.ceil(total / per_page) if total else 0
     return DocumentListResponse(items=items, total=total, page=page, pages=pages)

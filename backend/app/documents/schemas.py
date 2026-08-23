@@ -9,6 +9,10 @@ class DocumentCreate(BaseModel):
     description: str | None = None
     doc_type: str | None = Field(default=None, max_length=50)
     folder_id: uuid.UUID | None = None
+    physical_shelf: str | None = Field(default=None, max_length=50)
+    physical_division: str | None = Field(default=None, max_length=50)
+    physical_column: str | None = Field(default=None, max_length=50)
+    physical_volume: str | None = Field(default=None, max_length=50)
 
 
 class DocumentUpdate(BaseModel):
@@ -16,6 +20,10 @@ class DocumentUpdate(BaseModel):
     description: str | None = None
     doc_type: str | None = Field(default=None, max_length=50)
     folder_id: uuid.UUID | None = None
+    physical_shelf: str | None = Field(default=None, max_length=50)
+    physical_division: str | None = Field(default=None, max_length=50)
+    physical_column: str | None = Field(default=None, max_length=50)
+    physical_volume: str | None = Field(default=None, max_length=50)
 
 
 class DocumentResponse(BaseModel):
@@ -28,6 +36,10 @@ class DocumentResponse(BaseModel):
     status: str
     user_id: uuid.UUID
     folder_id: uuid.UUID | None
+    physical_shelf: str | None
+    physical_division: str | None
+    physical_column: str | None
+    physical_volume: str | None
     created_at: datetime
     processed_at: datetime | None
 
