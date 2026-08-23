@@ -72,3 +72,9 @@ class DocumentListResponse(BaseModel):
     total: int
     page: int
     pages: int
+
+
+class DocumentUploadResponse(BaseModel):
+    document_id: uuid.UUID
+    task_id: str | None = None
+    status: str

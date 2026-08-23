@@ -1,3 +1,5 @@
+import hashlib
+import io
 import uuid
 
 from sqlalchemy import func, select
@@ -8,10 +10,91 @@ from app.auth.permissions import is_staff
 from app.documents.models import AuditLog, Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.folders.models import Folder
+from app.storage.minio_client import delete_object, upload_bytes
+
+MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "tiff", "tif", "bmp", "pdf"}
+ORIGINALS_BUCKET = "originals"
+
+_CONTENT_TYPE_BY_EXTENSION = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "tiff": "image/tiff",
+    "tif": "image/tiff",
+    "bmp": "image/bmp",
+    "pdf": "application/pdf",
+}
 
 
 class InvalidFolderError(Exception):
     pass
+
+
+class InvalidFileError(Exception):
+    pass
+
+
+class DocumentAlreadyHasFileError(Exception):
+    pass
+
+
+def _extension_from_filename(filename: str | None) -> str:
+    if filename is None or "." not in filename:
+        raise InvalidFileError("El archivo no tiene una extension reconocible")
+    return filename.rsplit(".", 1)[1].lower()
+
+
+def _image_dimensions(data: bytes, extension: str) -> tuple[int | None, int | None]:
+    if extension == "pdf":
+        return None, None
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as image:
+            return image.width, image.height
+    except Exception:
+        return None, None
+
+
+async def attach_file_to_document(
+    db: AsyncSession, document: Document, file_bytes: bytes, filename: str | None
+) -> OriginalImage:
+    extension = _extension_from_filename(filename)
+    if extension not in ALLOWED_EXTENSIONS:
+        raise InvalidFileError(
+            f"Formato no permitido '{extension}'. Formatos aceptados: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        )
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise InvalidFileError("El archivo excede el tamano maximo de 20 MB")
+
+    existing = (
+        await db.execute(select(OriginalImage).where(OriginalImage.document_id == document.id))
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise DocumentAlreadyHasFileError("Este documento ya tiene un archivo asociado")
+
+    sha256_hash = hashlib.sha256(file_bytes).hexdigest()
+    minio_path = f"{document.user_id}/{document.id}.{extension}"
+    content_type = _CONTENT_TYPE_BY_EXTENSION.get(extension, "application/octet-stream")
+
+    upload_bytes(ORIGINALS_BUCKET, minio_path, file_bytes, content_type)
+
+    width_px, height_px = _image_dimensions(file_bytes, extension)
+
+    original_image = OriginalImage(
+        document_id=document.id,
+        minio_path=minio_path,
+        file_format=extension,
+        file_size_bytes=len(file_bytes),
+        sha256_hash=sha256_hash,
+        width_px=width_px,
+        height_px=height_px,
+    )
+    db.add(original_image)
+    await db.commit()
+    await db.refresh(original_image)
+    return original_image
 
 
 async def _folder_belongs_to(db: AsyncSession, folder_id: uuid.UUID, owner_user_id: uuid.UUID) -> bool:
@@ -83,6 +166,18 @@ async def create_document(db: AsyncSession, owner_user_id: uuid.UUID, data: Docu
     return document
 
 
+async def create_document_with_file(
+    db: AsyncSession,
+    owner_user_id: uuid.UUID,
+    data: DocumentCreate,
+    file_bytes: bytes,
+    filename: str | None,
+) -> Document:
+    document = await create_document(db, owner_user_id, data)
+    await attach_file_to_document(db, document, file_bytes, filename)
+    return document
+
+
 async def update_document(db: AsyncSession, document: Document, data: DocumentUpdate) -> Document:
     if data.folder_id is not None and not await _folder_belongs_to(db, data.folder_id, document.user_id):
         raise InvalidFolderError("La carpeta no existe o no pertenece al mismo propietario")
@@ -125,8 +220,15 @@ async def get_document_relations(
 
 
 async def delete_document(db: AsyncSession, document: Document) -> None:
+    original_image = (
+        await db.execute(select(OriginalImage).where(OriginalImage.document_id == document.id))
+    ).scalar_one_or_none()
+
     await db.delete(document)
     await db.commit()
+
+    if original_image is not None:
+        delete_object(ORIGINALS_BUCKET, original_image.minio_path)
 
 
 async def log_audit_action(
