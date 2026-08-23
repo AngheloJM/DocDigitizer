@@ -104,6 +104,8 @@ Para que el procesamiento corra, el worker debe estar levantado: `docker compose
 
 Formatos aceptados para subir: `png, jpg, jpeg, tiff, bmp, pdf`. Estados posibles: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Todas las acciones relevantes (`register`, `upload`, `view`, `download`, `delete`) quedan registradas en `audit_log`.
 
+⚠️ **Límite conocido**: si subes un PDF de varias páginas, el pipeline solo procesa la **primera página**. El total de páginas del PDF original queda registrado (no se pierde la información), pero el resto del contenido no se digitaliza todavía — el modelo de datos (`documents`) asume un documento = una imagen/página. Soporte multi-página es trabajo futuro.
+
 **Módulo `processing`/`worker`**: pipeline de restauración de imagen (corrección de perspectiva, quitar ruido, binarización, enderezado) + OCR (Tesseract con fallback a EasyOCR) + generación de PDF/A con `ocrmypdf`. Corre como tarea de Celery, encolada automáticamente al subir un documento. Requiere Ghostscript (por eso corre en un contenedor Docker — `backend/Dockerfile` — en vez de instalarse directo en cada máquina de desarrollo).
 
 **Búsqueda** (`GET /api/v1/search`) — requiere `Authorization: Bearer <token>`:

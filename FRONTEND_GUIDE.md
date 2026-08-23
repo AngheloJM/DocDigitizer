@@ -74,6 +74,8 @@ Ya funciona el flujo completo: subir el archivo, procesarlo (OCR + restauración
 
 Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB.
 
+⚠️ Si el archivo es un PDF de varias páginas, solo se procesa la **primera página** — avisa al usuario si va a subir un PDF multi-página (por ejemplo con un mensaje en la UI), porque el resto del contenido no se digitaliza.
+
 Hay **tres formas** de crear/completar un documento, según el flujo de tu UI:
 
 **A. Todo en un solo paso** (cuando ya tienes el archivo listo, ej. una foto recién tomada):
