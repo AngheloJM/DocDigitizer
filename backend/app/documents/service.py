@@ -130,6 +130,7 @@ async def list_documents(
     folder_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     doc_type: str | None = None,
+    physical_shelf: str | None = None,
     owner_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
@@ -150,6 +151,9 @@ async def list_documents(
     if doc_type is not None:
         query = query.where(Document.doc_type == doc_type)
         count_query = count_query.where(Document.doc_type == doc_type)
+    if physical_shelf is not None:
+        query = query.where(Document.physical_shelf == physical_shelf)
+        count_query = count_query.where(Document.physical_shelf == physical_shelf)
 
     query = query.order_by(Document.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
 
@@ -167,6 +171,10 @@ async def create_document(db: AsyncSession, owner_user_id: uuid.UUID, data: Docu
         description=data.description,
         doc_type=data.doc_type,
         folder_id=data.folder_id,
+        physical_shelf=data.physical_shelf,
+        physical_division=data.physical_division,
+        physical_column=data.physical_column,
+        physical_volume=data.physical_volume,
         user_id=owner_user_id,
         status="pending",
     )
@@ -200,6 +208,14 @@ async def update_document(db: AsyncSession, document: Document, data: DocumentUp
         document.doc_type = data.doc_type
     if data.folder_id is not None:
         document.folder_id = data.folder_id
+    if data.physical_shelf is not None:
+        document.physical_shelf = data.physical_shelf
+    if data.physical_division is not None:
+        document.physical_division = data.physical_division
+    if data.physical_column is not None:
+        document.physical_column = data.physical_column
+    if data.physical_volume is not None:
+        document.physical_volume = data.physical_volume
 
     await db.commit()
     await db.refresh(document)

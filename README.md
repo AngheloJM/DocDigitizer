@@ -89,16 +89,18 @@ Para que el procesamiento corra, el worker debe estar levantado: `docker compose
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/api/v1/documents` | Crea el registro de un documento sin archivo (`title`, `description`?, `doc_type`?, `folder_id`?) |
+| POST | `/api/v1/documents` | Crea el registro de un documento sin archivo (`title`, `description`?, `doc_type`?, `folder_id`?, `physical_shelf`?, `physical_division`?, `physical_column`?, `physical_volume`?) |
 | POST | `/api/v1/documents/upload` | Crea el documento y sube el archivo en un solo paso (multipart: `file`, `title`, `description`?, `doc_type`?, `folder_id`?) |
 | POST | `/api/v1/documents/{id}/upload` | Sube el archivo a un documento ya creado sin archivo (multipart: `file`). Responde `409` si el documento ya tiene uno |
-| GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type` |
+| GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type`, `physical_shelf` |
 | GET | `/api/v1/documents/{id}` | Detalle completo (incluye `original_image`, `generated_pdf`, `extracted_text` si ya existen) |
 | GET | `/api/v1/documents/{id}/status` | Solo el estado — pensado para polling ligero desde el frontend |
 | GET | `/api/v1/documents/{id}/download` | Descarga el PDF procesado (o el archivo original si aun no termino de procesarse) |
 | POST | `/api/v1/documents/{id}/reprocess` | Vuelve a correr el pipeline (OCR + PDF/A) sobre el archivo ya subido. Falla con 400 si el documento no tiene archivo |
 | PATCH | `/api/v1/documents/{id}` | Actualiza título, descripción, tipo o carpeta |
 | DELETE | `/api/v1/documents/{id}` | Elimina el registro y su archivo en MinIO |
+
+**Ubicación física**: `physical_shelf`, `physical_division`, `physical_column`, `physical_volume` son opcionales — permiten registrar dónde está guardado un documento (estante/división/columna/tomo) sin necesidad de haberlo escaneado todavía. El personal administrativo puede catalogar el archivo físico primero y subir el escaneo de cada uno más adelante (`POST /documents/{id}/upload`).
 
 Formatos aceptados para subir: `png, jpg, jpeg, tiff, bmp, pdf`. Estados posibles: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Todas las acciones relevantes (`register`, `upload`, `view`, `download`, `delete`) quedan registradas en `audit_log`.
 

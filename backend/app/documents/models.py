@@ -39,6 +39,10 @@ class Document(Base):
         UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True
     )
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    physical_shelf: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    physical_division: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    physical_column: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    physical_volume: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
