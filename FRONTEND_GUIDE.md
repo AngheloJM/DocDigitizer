@@ -103,13 +103,20 @@ DELETE /documents/{id}                                                  → 204 
 
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
 
-## 4. Qué NO está listo todavía
+## 4. Búsqueda
 
-- **Búsqueda full-text** (`/search`) — la base de datos ya lo soporta (probado con `ts_rank`), pero el endpoint HTTP no existe aún.
+```
+GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
+→ 200 { items: [{ document, highlight, rank }], total, page, pages }
+```
+
+`q` es obligatorio. `highlight` trae el fragmento del texto con las coincidencias marcadas como `<b>palabra</b>` (útil para mostrar directo en la UI). Solo encuentra documentos que ya terminaron de procesarse.
+
+## 5. Qué NO está listo todavía
 
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
-## 5. Errores comunes a manejar en el frontend
+## 6. Errores comunes a manejar en el frontend
 
 | Código | Cuándo pasa |
 |---|---|

@@ -93,6 +93,17 @@ Formatos aceptados para subir: `png, jpg, jpeg, tiff, bmp, pdf`. Estados posible
 
 **Módulo `processing`/`worker`**: pipeline de restauración de imagen (corrección de perspectiva, quitar ruido, binarización, enderezado) + OCR (Tesseract con fallback a EasyOCR) + generación de PDF/A con `ocrmypdf`. Corre como tarea de Celery, encolada automáticamente al subir un documento. Requiere Ghostscript (por eso corre en un contenedor Docker — `backend/Dockerfile` — en vez de instalarse directo en cada máquina de desarrollo).
 
+**Búsqueda** (`GET /api/v1/search`) — requiere `Authorization: Bearer <token>`:
+
+| Parámetro | Descripción |
+|---|---|
+| `q` (requerido) | Texto a buscar, en español, con lematización (ej. "calificación" encuentra "calificaciones") |
+| `doc_type`, `folder_id`, `date_from`, `date_to` | Filtros opcionales |
+| `owner_id` | Solo para `admin`/`super_admin`: buscar en documentos de otro usuario |
+| `page`, `per_page` | Paginación |
+
+Respuesta: `{items: [{document, highlight, rank}], total, page, pages}`, donde `highlight` resalta las coincidencias con `<b>...</b>` y `rank` indica qué tan relevante es el resultado (mayor = más relevante). Solo encuentra documentos que ya terminaron de procesarse (con `extracted_text`).
+
 ### Nota sobre el puerto
 
 Usamos el puerto `8001` para este proyecto (no `8000`) para evitar choques con otros proyectos locales corriendo en la misma máquina.

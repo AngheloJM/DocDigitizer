@@ -78,3 +78,16 @@ class DocumentUploadResponse(BaseModel):
     document_id: uuid.UUID
     task_id: str | None = None
     status: str
+
+
+class SearchResultItem(BaseModel):
+    document: DocumentResponse
+    highlight: str
+    rank: float
+
+
+class SearchResponse(BaseModel):
+    items: list[SearchResultItem]
+    total: int
+    page: int
+    pages: int
