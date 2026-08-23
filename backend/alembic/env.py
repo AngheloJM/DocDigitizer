@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.database import Base
 from app.auth import models as auth_models  # noqa: F401
 from app.folders import models as folders_models  # noqa: F401
+from app.documents import models as documents_models  # noqa: F401
 
 config = context.config
 settings = get_settings()
