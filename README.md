@@ -7,6 +7,8 @@ Sistema de gestión, digitalización y organización automatizada de documentos.
 - `backend/` — API REST (FastAPI), procesamiento de documentos (OCR) y base de datos.
 - `frontend/` — aplicación web (en desarrollo por el equipo de frontend).
 
+> 👉 Si eres del equipo de frontend, revisa [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md) para ver exactamente qué puedes construir ya mismo, con ejemplos de cada request/response.
+
 ## Backend — guía rápida para el equipo de frontend
 
 El backend expone documentación interactiva automática (Swagger) para probar los endpoints sin necesidad de escribir código.
