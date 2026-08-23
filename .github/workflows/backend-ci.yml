@@ -59,6 +59,11 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
+      - name: Instalar Tesseract y Ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-spa ghostscript
+
       - name: Levantar MinIO
         run: |
           docker run -d --name minio -p 9000:9000 -p 9001:9001 \

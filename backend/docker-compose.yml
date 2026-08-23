@@ -27,6 +27,23 @@ services:
     volumes:
       - minio_data:/data
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/docdigitizer
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      MINIO_ENDPOINT: minio:9000
+    depends_on:
+      - postgres
+      - redis
+      - minio
+
 volumes:
   postgres_data:
   minio_data:
