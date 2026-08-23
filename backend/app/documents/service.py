@@ -22,6 +22,10 @@ PROCESSED_BUCKET = "processed"
 class NoDownloadableFileError(Exception):
     pass
 
+
+class NoOriginalFileError(Exception):
+    pass
+
 _CONTENT_TYPE_BY_EXTENSION = {
     "png": "image/png",
     "jpg": "image/jpeg",
@@ -336,3 +340,19 @@ async def search_documents(
     rows = (await db.execute(ranked_query)).all()
     results = [(row.Document, row.highlight, row.rank) for row in rows]
     return results, total
+
+
+async def mark_document_for_reprocessing(db: AsyncSession, document: Document) -> Document:
+    has_original = (
+        await db.execute(select(OriginalImage.id).where(OriginalImage.document_id == document.id))
+    ).scalar_one_or_none()
+
+    if has_original is None:
+        raise NoOriginalFileError(
+            "Este documento no tiene un archivo original para reprocesar. Sube uno primero."
+        )
+
+    document.status = "reprocessing"
+    await db.commit()
+    await db.refresh(document)
+    return document
