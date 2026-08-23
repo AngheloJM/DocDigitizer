@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.auth import models as auth_models  # noqa: F401
 from app.config import get_settings
-from app.database import SessionLocal
+from app.database import SessionLocal, engine
 from app.documents.models import Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.folders import models as folders_models  # noqa: F401
 from app.processing.pipeline import process_image_bytes
@@ -91,6 +91,13 @@ async def _process_document(document_id: uuid.UUID) -> None:
             raise
 
 
+async def _process_document_and_dispose(document_id: uuid.UUID) -> None:
+    try:
+        await _process_document(document_id)
+    finally:
+        await engine.dispose()
+
+
 @celery_app.task(name="app.worker.tasks.process_document")
 def process_document(document_id: str) -> None:
-    asyncio.run(_process_document(uuid.UUID(document_id)))
+    asyncio.run(_process_document_and_dispose(uuid.UUID(document_id)))

@@ -86,6 +86,7 @@ Para que el procesamiento corra, el worker debe estar levantado: `docker compose
 | GET | `/api/v1/documents/{id}` | Detalle completo (incluye `original_image`, `generated_pdf`, `extracted_text` si ya existen) |
 | GET | `/api/v1/documents/{id}/status` | Solo el estado — pensado para polling ligero desde el frontend |
 | GET | `/api/v1/documents/{id}/download` | Descarga el PDF procesado (o el archivo original si aun no termino de procesarse) |
+| POST | `/api/v1/documents/{id}/reprocess` | Vuelve a correr el pipeline (OCR + PDF/A) sobre el archivo ya subido. Falla con 400 si el documento no tiene archivo |
 | PATCH | `/api/v1/documents/{id}` | Actualiza título, descripción, tipo o carpeta |
 | DELETE | `/api/v1/documents/{id}` | Elimina el registro y su archivo en MinIO |
 

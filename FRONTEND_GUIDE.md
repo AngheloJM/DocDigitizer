@@ -97,6 +97,7 @@ GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=  → 200 {
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
+POST   /documents/{id}/reprocess                                        → 202 { document_id, task_id, status: "reprocessing" }
 PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id? }  → 200
 DELETE /documents/{id}                                                  → 204 (borra tambien el archivo de MinIO)
 ```
