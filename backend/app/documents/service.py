@@ -10,11 +10,16 @@ from app.auth.permissions import is_staff
 from app.documents.models import AuditLog, Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.folders.models import Folder
-from app.storage.minio_client import delete_object, upload_bytes
+from app.storage.minio_client import delete_object, download_bytes, upload_bytes
 
 MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "tiff", "tif", "bmp", "pdf"}
 ORIGINALS_BUCKET = "originals"
+PROCESSED_BUCKET = "processed"
+
+
+class NoDownloadableFileError(Exception):
+    pass
 
 _CONTENT_TYPE_BY_EXTENSION = {
     "png": "image/png",
@@ -217,6 +222,32 @@ async def get_document_relations(
     ).scalar_one_or_none()
 
     return original_image, generated_pdf, extracted_text
+
+
+async def get_downloadable_file(db: AsyncSession, document: Document) -> tuple[bytes, str, str]:
+    generated_pdf = (
+        await db.execute(
+            select(GeneratedPdf)
+            .where(GeneratedPdf.document_id == document.id)
+            .order_by(GeneratedPdf.version.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if generated_pdf is not None:
+        data = download_bytes(PROCESSED_BUCKET, generated_pdf.minio_path)
+        return data, f"{document.title}.pdf", "application/pdf"
+
+    original_image = (
+        await db.execute(select(OriginalImage).where(OriginalImage.document_id == document.id))
+    ).scalar_one_or_none()
+
+    if original_image is None:
+        raise NoDownloadableFileError("Este documento no tiene ningun archivo asociado todavia")
+
+    data = download_bytes(ORIGINALS_BUCKET, original_image.minio_path)
+    content_type = _CONTENT_TYPE_BY_EXTENSION.get(original_image.file_format, "application/octet-stream")
+    return data, f"{document.title}.{original_image.file_format}", content_type
 
 
 async def delete_document(db: AsyncSession, document: Document) -> None:
