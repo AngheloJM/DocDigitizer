@@ -73,7 +73,9 @@ El primer `super_admin` no se crea por API — se inserta una sola vez directame
 
 **Módulo `documents`** (`/api/v1/documents`) — requiere `Authorization: Bearer <token>`:
 
-⚠️ **Alcance actual**: ya se puede subir el archivo real (imagen o PDF, hasta 20MB) y se guarda en MinIO. Lo que falta es el **procesamiento** (`processing`/`worker`): OCR, restauración de imagen y generación del PDF mejorado. Por ahora todo documento con archivo queda en `pending`, con `original_image` lleno pero `generated_pdf`/`extracted_text` en `null`.
+✅ **El flujo completo ya funciona**: subir el archivo encola automáticamente el procesamiento (OCR + restauración de imagen + generación de PDF/A) en el worker de Celery. El documento pasa de `pending` → `processing` → `completed`, con `generated_pdf` y `extracted_text` ya llenos.
+
+Para que el procesamiento corra, el worker debe estar levantado: `docker compose up -d worker` (usa Tesseract + Ghostscript instalados dentro del contenedor — no requieren instalarse en tu máquina).
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -83,12 +85,13 @@ El primer `super_admin` no se crea por API — se inserta una sola vez directame
 | GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type` |
 | GET | `/api/v1/documents/{id}` | Detalle completo (incluye `original_image`, `generated_pdf`, `extracted_text` si ya existen) |
 | GET | `/api/v1/documents/{id}/status` | Solo el estado — pensado para polling ligero desde el frontend |
+| GET | `/api/v1/documents/{id}/download` | Descarga el PDF procesado (o el archivo original si aun no termino de procesarse) |
 | PATCH | `/api/v1/documents/{id}` | Actualiza título, descripción, tipo o carpeta |
 | DELETE | `/api/v1/documents/{id}` | Elimina el registro y su archivo en MinIO |
 
-Formatos aceptados para subir: `png, jpg, jpeg, tiff, bmp, pdf`. Estados posibles: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Todas las acciones relevantes (`register`, `upload`, `view`, `delete`) quedan registradas en `audit_log`.
+Formatos aceptados para subir: `png, jpg, jpeg, tiff, bmp, pdf`. Estados posibles: `pending`, `processing`, `completed`, `failed`, `reprocessing`. Todas las acciones relevantes (`register`, `upload`, `view`, `download`, `delete`) quedan registradas en `audit_log`.
 
-El resto de módulos (`processing`) se van agregando por rama (`backend/<modulo>`) y se documentan aquí a medida que se integran a `main`.
+**Módulo `processing`/`worker`**: pipeline de restauración de imagen (corrección de perspectiva, quitar ruido, binarización, enderezado) + OCR (Tesseract con fallback a EasyOCR) + generación de PDF/A con `ocrmypdf`. Corre como tarea de Celery, encolada automáticamente al subir un documento. Requiere Ghostscript (por eso corre en un contenedor Docker — `backend/Dockerfile` — en vez de instalarse directo en cada máquina de desarrollo).
 
 ### Nota sobre el puerto
 

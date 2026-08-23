@@ -70,7 +70,7 @@ DELETE /folders/{id}                                                    → 204
 
 ## 3. Documentos
 
-Ya se puede subir el archivo real (imagen o PDF). Lo que **todavía no existe** es el procesamiento (OCR, restauración de imagen, generación del PDF mejorado) — eso depende del módulo `processing`, pendiente. Por ahora, todo documento con archivo queda en `pending`, con `original_image` lleno pero `generated_pdf`/`extracted_text` en `null`.
+Ya funciona el flujo completo: subir el archivo, procesarlo (OCR + restauración de imagen + PDF/A) y descargarlo. Cuando subes un archivo, el documento pasa automáticamente por `pending` → `processing` → `completed` (unos segundos, según el tamaño). Puedes hacer polling sobre `/documents/{id}/status` para saber cuándo terminó.
 
 Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB.
 
@@ -96,17 +96,18 @@ Intentar subir un segundo archivo al mismo documento responde `409` (un document
 GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
+GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
 PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id? }  → 200
 DELETE /documents/{id}                                                  → 204 (borra tambien el archivo de MinIO)
 ```
 
-Estados posibles de `status`: `pending`, `processing`, `completed`, `failed`, `reprocessing`.
+Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
 
 ## 4. Qué NO está listo todavía
 
-- **OCR y generación del PDF mejorado** (`processing`/`worker`) — el archivo original ya se guarda, pero la restauración de imagen y el texto buscable todavía no se generan.
-- **Descargar el archivo** (`GET /documents/{id}/download`) — el archivo ya está en MinIO, pero el endpoint de descarga aún no está expuesto.
-- **Búsqueda full-text** (`/search`) — la base de datos ya lo soporta (probado), pero el endpoint HTTP no existe aún.
+- **Búsqueda full-text** (`/search`) — la base de datos ya lo soporta (probado con `ts_rank`), pero el endpoint HTTP no existe aún.
+
+Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 ## 5. Errores comunes a manejar en el frontend
 
