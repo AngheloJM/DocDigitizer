@@ -19,6 +19,7 @@ from app.documents.service import (
     InvalidFileError,
     InvalidFolderError,
     NoDownloadableFileError,
+    NoOriginalFileError,
 )
 from app.worker.tasks import process_document
 
@@ -195,6 +196,32 @@ async def download_document(document_id: uuid.UUID, db: DbSession, current_user:
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/{document_id}/reprocess", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
+async def reprocess_document(document_id: uuid.UUID, db: DbSession, current_user: CurrentUser, request: Request):
+    document = await service.get_document(db, document_id, current_user)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
+
+    try:
+        document = await service.mark_document_for_reprocessing(db, document)
+    except NoOriginalFileError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+
+    task = process_document.delay(str(document.id))
+    document.celery_task_id = task.id
+    await db.commit()
+
+    await service.log_audit_action(
+        db,
+        current_user.id,
+        action="reprocess",
+        document_id=document.id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return DocumentUploadResponse(document_id=document.id, task_id=task.id, status=document.status)
 
 
 @router.patch("/{document_id}", response_model=DocumentResponse)
