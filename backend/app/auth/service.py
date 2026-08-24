@@ -4,12 +4,12 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.permissions import roles_creatable_by
-from app.auth.schemas import UserCreate
+from app.auth.schemas import UserAdminUpdate, UserCreate
 from app.config import get_settings
 from app.redis_client import get_redis_client
 
@@ -157,3 +157,53 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> User
     if user is None or not verify_password(password, user.password_hash):
         return None
     return user
+
+
+async def list_users(
+    db: AsyncSession,
+    requesting_user: User,
+    role_filter: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> tuple[list[User], int]:
+    manageable_roles = roles_creatable_by(requesting_user)
+    visible_roles = {role_filter} & manageable_roles if role_filter else manageable_roles
+
+    query = select(User).where(User.role.in_(visible_roles))
+    count_query = select(func.count()).select_from(User).where(User.role.in_(visible_roles))
+
+    query = query.order_by(User.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+
+    total = (await db.execute(count_query)).scalar_one()
+    items = list((await db.execute(query)).scalars().all())
+    return items, total
+
+
+async def get_manageable_user(
+    db: AsyncSession, requesting_user: User, target_user_id: uuid.UUID
+) -> User | None:
+    manageable_roles = roles_creatable_by(requesting_user)
+    result = await db.execute(
+        select(User).where(User.id == target_user_id, User.role.in_(manageable_roles))
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_user_admin(
+    db: AsyncSession, requesting_user: User, target_user: User, data: UserAdminUpdate
+) -> User:
+    manageable_roles = roles_creatable_by(requesting_user)
+
+    if data.role is not None:
+        if data.role not in manageable_roles:
+            raise InvalidRoleAssignmentError(
+                f"No tienes permisos para asignar el rol '{data.role}'"
+            )
+        target_user.role = data.role
+
+    if data.is_active is not None:
+        target_user.is_active = data.is_active
+
+    await db.commit()
+    await db.refresh(target_user)
+    return target_user

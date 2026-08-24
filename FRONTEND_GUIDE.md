@@ -52,6 +52,14 @@ GET /auth/me
 ```
 `role` es uno de `student`, `admin`, `super_admin` — útil para decidir qué mostrar en la UI (ej. un estudiante no debería ver el botón de "ver documentos de otros").
 
+**Gestionar usuarios existentes** (solo `admin`/`super_admin`):
+```
+GET   /auth/users?role_filter=&page=&per_page=   → 200 { items, total, page, pages }
+GET   /auth/users/{id}                            → 200 (404 si no esta en tu alcance)
+PATCH /auth/users/{id}   { role?, is_active? }     → 200
+```
+Un `admin` solo ve/gestiona `student`; un `super_admin` ve/gestiona `admin` y `student` (nadie ve otros `super_admin` por API). Desactivar a alguien (`is_active: false`) le bloquea el login inmediatamente (403) y también invalida cualquier sesión que ya tuviera abierta.
+
 ### Sugerencia de manejo de sesión en el frontend
 - Guarda `access_token` y `refresh_token` (ej. en memoria + `refresh_token` en storage seguro).
 - Interceptor HTTP: si una petición devuelve `401`, intenta `/auth/refresh` una vez y reintenta la petición original; si el refresh también falla, redirige a login.
