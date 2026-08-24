@@ -1,8 +1,19 @@
+import math
+import uuid
+
 from fastapi import APIRouter, HTTPException, status
 
 from app.auth import service
 from app.auth.permissions import is_staff
-from app.auth.schemas import LoginRequest, RefreshRequest, TokenResponse, UserCreate, UserResponse
+from app.auth.schemas import (
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserAdminUpdate,
+    UserCreate,
+    UserListResponse,
+    UserResponse,
+)
 from app.auth.service import InvalidEmailDomainError, InvalidRoleAssignmentError, TooManyLoginAttemptsError
 from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
@@ -31,6 +42,59 @@ async def create_user(data: UserCreate, db: DbSession, current_user: CurrentUser
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
+@router.get("/users", response_model=UserListResponse)
+async def list_users(
+    db: DbSession,
+    current_user: CurrentUser,
+    role_filter: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+):
+    if not is_staff(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para listar usuarios",
+        )
+
+    items, total = await service.list_users(db, current_user, role_filter, page, per_page)
+    pages = math.ceil(total / per_page) if total else 0
+    return UserListResponse(items=items, total=total, page=page, pages=pages)
+
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    if not is_staff(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver este usuario",
+        )
+
+    user = await service.get_manageable_user(db, current_user, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    return user
+
+
+@router.patch("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: uuid.UUID, data: UserAdminUpdate, db: DbSession, current_user: CurrentUser
+):
+    if not is_staff(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para modificar usuarios",
+        )
+
+    target_user = await service.get_manageable_user(db, current_user, user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    try:
+        return await service.update_user_admin(db, current_user, target_user, data)
+    except InvalidRoleAssignmentError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error))
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(data: LoginRequest, db: DbSession):
     try:
@@ -44,6 +108,12 @@ async def login(data: LoginRequest, db: DbSession):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas",
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta cuenta esta desactivada",
         )
 
     await service.reset_login_attempts(data.email)
