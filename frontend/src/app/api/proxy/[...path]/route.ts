@@ -42,7 +42,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
     }
 
     const responseHeaders = new Headers();
-    const pass = ["content-type", "content-disposition", "content-length"];
+    const pass = ["content-type", "content-disposition"];
     for (const name of pass) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);

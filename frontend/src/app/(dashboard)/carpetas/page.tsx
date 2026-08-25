@@ -17,11 +17,13 @@ function CarpetasContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const data = await backend.folders.list(parentId);
@@ -40,6 +42,7 @@ function CarpetasContent() {
   }, [parentId]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
   }, [load]);
 
@@ -70,6 +73,24 @@ function CarpetasContent() {
     }
   }
 
+  async function onUpload(event: FormEvent) {
+    event.preventDefault();
+    if (!file || !title.trim() || !parentId) return;
+    const form = new FormData();
+    form.append("file", file);
+    form.append("title", title.trim());
+    form.append("folder_id", parentId);
+    try {
+      await backend.documents.upload(form);
+      setTitle("");
+      setFile(null);
+      setUploading(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo subir el documento");
+    }
+  }
+
   return (
     <>
       <div className="flex flex-col lg:flex-row gap-6 items-start justify-between mb-12">
@@ -79,13 +100,30 @@ function CarpetasContent() {
             Organiza documentos en carpetas y subcarpetas.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreating((value) => !value)}
-          className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
-        >
-          <Icon name="add" className="text-lg" /> Nueva carpeta
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setCreating((value) => !value);
+              setUploading(false);
+            }}
+            className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+          >
+            <Icon name="add" className="text-lg" /> Nueva carpeta
+          </button>
+          {parentId && (
+            <button
+              type="button"
+              onClick={() => {
+                setUploading((value) => !value);
+                setCreating(false);
+              }}
+              className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+            >
+              <Icon name="upload" className="text-lg" /> Subir documento
+            </button>
+          )}
+        </div>
       </div>
 
       {parentId && (
@@ -96,6 +134,42 @@ function CarpetasContent() {
         >
           <Icon name="arrow_back" className="text-base" /> Volver a carpetas raíz
         </button>
+      )}
+
+      {uploading && parentId && (
+        <form onSubmit={onUpload} className="bg-white rounded-xl p-5 border border-gray-200 mb-6 space-y-4">
+          <h3 className="text-sm font-semibold text-on-surface">Subir a esta carpeta</h3>
+          <p className="text-xs text-on-surface-variant">
+            Formatos: png, jpg, jpeg, tiff, bmp, pdf. Máximo 20 MB. Si el PDF tiene varias páginas, solo se procesa la primera.
+          </p>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">Título</label>
+            <input
+              required
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">Archivo</label>
+            <input
+              required
+              type="file"
+              accept=".png,.jpg,.jpeg,.tiff,.bmp,.pdf"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+              className="w-full text-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-primary-light">
+              Subir
+            </button>
+            <button type="button" onClick={() => setUploading(false)} className="border border-gray-200 text-sm py-2 px-4 rounded-lg">
+              Cancelar
+            </button>
+          </div>
+        </form>
       )}
 
       {creating && (

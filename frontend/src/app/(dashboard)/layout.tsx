@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AuthProvider, useAuth } from "@/components/providers/AuthProvider";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 import { UiProvider, useUi } from "@/components/providers/UiProvider";
 import { Sidebar } from "@/components/layouts/Sidebar";
 import { TopBar } from "@/components/layouts/TopBar";
@@ -10,20 +10,8 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { sidebarCollapsed } = useUi();
-  const { loading } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const marginLeft = isDesktop ? (sidebarCollapsed ? 72 : 260) : 0;
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="w-10 h-10 rounded-lg bg-primary mx-auto mb-3" />
-          <p className="text-sm text-on-surface-variant">Cargando sesión...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen bg-white text-on-surface font-sans antialiased">
