@@ -20,7 +20,6 @@ function DocumentosContent() {
   const [file, setFile] = useState<File | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const data = await backend.documents.list();
@@ -144,29 +143,16 @@ function DocumentosContent() {
               <thead>
                 <tr className="border-b border-gray-200 text-[11px] text-on-surface-variant uppercase tracking-wider bg-gray-50/50">
                   <th className="py-3 px-4 font-medium">Título</th>
-                  <th className="py-3 px-4 font-medium">Tipo</th>
                   <th className="py-3 px-4 font-medium">Estado</th>
-                  <th className="py-3 px-4 font-medium">Ubicación física</th>
                   <th className="py-3 px-4 text-right font-medium" />
                 </tr>
               </thead>
               <tbody className="text-sm">
                 {items.map((doc) => (
                   <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="font-medium">{doc.title}</div>
-                      <div className="text-[12px] text-on-surface-variant mt-0.5">{doc.description || "Sin descripción"}</div>
-                    </td>
-                    <td className="py-3 px-4 text-on-surface-variant">{doc.doc_type || "—"}</td>
+                    <td className="py-3 px-4 font-medium">{doc.title}</td>
                     <td className="py-3 px-4">
                       <StatusBadge status={doc.status} />
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="font-mono text-[11px] text-on-surface-variant">
-                        {doc.physical_shelf || doc.physical_division || doc.physical_column || doc.physical_volume
-                          ? `E-${doc.physical_shelf ?? "—"} / D-${doc.physical_division ?? "—"} / C-${doc.physical_column ?? "—"} / T-${doc.physical_volume ?? "—"}`
-                          : "—"}
-                      </span>
                     </td>
                     <td className="py-3 px-4 text-right">
                       {doc.status === "completed" ? (

@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useUi } from "@/components/providers/UiProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { isStaff } from "@/lib/types";
+import { initials, isStaff, ROLE_LABEL } from "@/lib/types";
 
 const navItems = [
   { href: "/carpetas", icon: "inventory_2", label: "Carpetas" },
@@ -92,6 +92,26 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         </div>
 
         <div className="mt-auto border-t border-gray-200 pt-3 px-2">
+          <div
+            className={`mb-1 rounded-lg ${collapsed ? "px-1 py-2 flex justify-center" : "px-3 py-2.5"}`}
+            title={user ? `${user.full_name} · ${ROLE_LABEL[user.role]}` : "Cargando usuario"}
+          >
+            <div className={`flex items-center ${collapsed ? "" : "gap-3"}`}>
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
+                {user ? initials(user.full_name) : "—"}
+              </div>
+              {showLabels && (
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-on-surface truncate">
+                    {user?.full_name ?? "Cargando..."}
+                  </p>
+                  <p className="text-xs text-on-surface-variant truncate">
+                    {user ? ROLE_LABEL[user.role] : "Sesión"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
           <button
             type="button"
             onClick={() => {

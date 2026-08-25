@@ -78,9 +78,13 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
               {user ? initials(user.full_name) : "—"}
             </div>
-            <div className="hidden sm:block text-left">
-              <p className="text-xs font-medium text-on-surface leading-none">{user?.full_name ?? "Cargando..."}</p>
-              <p className="text-[10px] text-on-surface-variant">{user ? ROLE_LABEL[user.role] : ""}</p>
+            <div className="hidden sm:block text-left max-w-[180px]">
+              <p className="text-sm font-medium text-on-surface leading-tight truncate">
+                {user?.full_name ?? "Cargando..."}
+              </p>
+              <p className="text-xs text-on-surface-variant truncate">
+                {user ? ROLE_LABEL[user.role] : "Sesión"}
+              </p>
             </div>
             <Icon name="expand_more" className="text-base text-on-surface-variant hidden sm:block" />
           </button>
@@ -88,7 +92,8 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
             <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 animate-fade-in">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-medium text-on-surface">{user.full_name}</p>
-                <p className="text-xs text-on-surface-variant">{user.email}</p>
+                <p className="text-xs text-primary font-medium mt-0.5">{ROLE_LABEL[user.role]}</p>
+                <p className="text-xs text-on-surface-variant mt-1">{user.email}</p>
               </div>
               <div className="border-t border-gray-100 py-1">
                 <button

@@ -7,13 +7,12 @@ import { backend } from "@/lib/backend";
 import { isStaff, ROLE_LABEL, type Role, type User } from "@/lib/types";
 
 export default function UsuariosPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const data = await backend.auth.listUsers();
@@ -37,6 +36,10 @@ export default function UsuariosPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar el usuario");
     }
+  }
+
+  if (authLoading && !user) {
+    return <p className="text-sm text-on-surface-variant">Cargando sesión...</p>;
   }
 
   if (user && !isStaff(user.role)) {
