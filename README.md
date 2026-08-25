@@ -9,6 +9,22 @@ Sistema de gestión, digitalización y organización automatizada de documentos.
 
 > 👉 Si eres del equipo de frontend, revisa [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md) para ver exactamente qué puedes construir ya mismo, con ejemplos de cada request/response.
 
+## Despliegue en producción
+
+| Servicio | Proveedor | URL |
+|---|---|---|
+| API (FastAPI) | Render (Web Service, free tier) | https://docdigitizer.onrender.com |
+| Worker OCR/PDF (Celery) | Render (Web Service + wrapper, free tier) | https://docdigitizer-1.onrender.com |
+| Base de datos | Neon (Postgres administrado) | — |
+| Cola/broker | Upstash (Redis administrado) | — |
+| Almacenamiento de archivos | Cloudflare R2 (compatible S3) | — |
+| Frontend (Next.js) | Vercel | https://doc-digitizer-nine.vercel.app |
+
+**Notas del despliegue free tier:**
+- Render free tier no permite "Background Worker", así que el worker corre como un Web Service normal con un wrapper FastAPI (`app/worker_web_wrapper.py`) que lanza Celery como subproceso y expone `/health`. La API dispara un ping a esa URL (`WORKER_WAKE_URL`) justo después de encolar cada tarea, para ayudar a despertar al worker si estaba dormido — no es 100% confiable (puede tardar 30-50s en despertar), es un mitigante, no una solución de tiempo real.
+- El worker corre con `--concurrency=1 --pool=solo` (ver `Dockerfile` y `worker_web_wrapper.py`) porque el free tier de Render da solo 512MB de RAM — con concurrencia mayor, el pipeline de OCR (Tesseract/OpenCV) agotaba la memoria y el proceso moría a mitad de una tarea sin reportar el fallo.
+- `CORS_ALLOWED_ORIGINS` está temporalmente en `["*"]` en producción — pendiente de restringir a la URL real del frontend una vez que el equipo de frontend confirme que quedó estable.
+
 ## Backend — guía rápida para el equipo de frontend
 
 El backend expone documentación interactiva automática (Swagger) para probar los endpoints sin necesidad de escribir código.
@@ -30,7 +46,7 @@ uvicorn app.main:app --reload --port 8001
 
 ### Dónde probar los endpoints
 
-- **Swagger UI**: http://127.0.0.1:8001/docs — interfaz interactiva, con botón "Try it out" en cada endpoint y soporte para pegar el token JWT (botón de candado, arriba a la derecha) una vez que hagas login.
+- **Swagger UI**: http://127.0.0.1:8001/docs (local) o https://docdigitizer.onrender.com/docs (producción) — interfaz interactiva, con botón "Try it out" en cada endpoint. Para autenticarte, hace login primero contra `POST /auth/login`, copia el `access_token` de la respuesta, y pégalo en el botón "Authorize" (candado, arriba a la derecha) — solo pide el token, no usuario/contraseña.
 - **ReDoc**: http://127.0.0.1:8001/redoc — documentación de solo lectura, más limpia para consulta.
 - **OpenAPI JSON**: http://127.0.0.1:8001/openapi.json — útil si quieren generar un cliente TypeScript automático (ej. `openapi-typescript`, `orval`) en vez de escribir los `fetch`/`axios` a mano.
 

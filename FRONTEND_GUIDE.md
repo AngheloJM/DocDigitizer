@@ -6,9 +6,16 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 Levanta el backend localmente siguiendo la sección "Backend — guía rápida para el equipo de frontend" del [README.md](README.md). Una vez arriba:
 
-- Base URL: `http://127.0.0.1:8001/api/v1`
-- Swagger interactivo: `http://127.0.0.1:8001/docs`
-- CORS ya está habilitado para `http://localhost:3000` (el puerto por defecto de Next.js). Si usas otro puerto, avisa para agregarlo.
+- Base URL local: `http://127.0.0.1:8001/api/v1`
+- Swagger interactivo local: `http://127.0.0.1:8001/docs`
+- CORS local ya está habilitado para `http://localhost:3000` (el puerto por defecto de Next.js). Si usas otro puerto, avisa para agregarlo.
+
+**Producción (ya desplegado):**
+- Base URL: `https://docdigitizer.onrender.com/api/v1`
+- Swagger: `https://docdigitizer.onrender.com/docs`
+- Frontend real: `https://doc-digitizer-nine.vercel.app`
+- `CORS_ALLOWED_ORIGINS` está temporalmente en `["*"]` en el backend de producción — se va a restringir a la URL de Vercel apenas se confirme que el frontend quedó estable, así que no dependas de que siga siendo `"*"` a futuro.
+- ⚠️ El backend de producción corre en el free tier de Render: la primera petición después de un rato de inactividad puede tardar 30-50 segundos en responder mientras el servicio "despierta". No es un bug, es una limitación del plan gratuito — si vas a hacer demos, haz un request de calentamiento (ej. `GET /health`) unos segundos antes.
 
 Todos los endpoints salvo `login` y `refresh` requieren el header:
 ```
@@ -128,6 +135,11 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 ## 5. Qué NO está listo todavía
 
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
+
+Pendientes conocidos del backend (no bloquean el desarrollo del frontend, pero ten presente que no existen todavía):
+- Revocación explícita de refresh tokens en logout (hoy expiran solos a los 7 días, no hay invalidación anticipada del lado del servidor más allá de la rotación de un solo uso).
+- Rate limiting solo existe en `/auth/login`; el resto de endpoints no lo tiene.
+- Soporte real para PDFs de varias páginas (solo se procesa la primera página, ver nota en la sección 3).
 
 ## 6. Errores comunes a manejar en el frontend
 
