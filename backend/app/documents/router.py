@@ -22,6 +22,7 @@ from app.documents.service import (
     NoOriginalFileError,
 )
 from app.worker.tasks import process_document
+from app.worker.wake import wake_worker
 
 router = APIRouter()
 
@@ -72,6 +73,7 @@ async def upload_document(
     task = process_document.delay(str(document.id))
     document.celery_task_id = task.id
     await db.commit()
+    await wake_worker()
 
     await service.log_audit_action(
         db,
@@ -108,6 +110,7 @@ async def upload_document_file(
     task = process_document.delay(str(document.id))
     document.celery_task_id = task.id
     await db.commit()
+    await wake_worker()
 
     await service.log_audit_action(
         db,
@@ -213,6 +216,7 @@ async def reprocess_document(document_id: uuid.UUID, db: DbSession, current_user
     task = process_document.delay(str(document.id))
     document.celery_task_id = task.id
     await db.commit()
+    await wake_worker()
 
     await service.log_audit_action(
         db,

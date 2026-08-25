@@ -66,6 +66,8 @@ class Settings(BaseSettings):
 
     allowed_email_domains: list[str] = []
 
+    worker_wake_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
