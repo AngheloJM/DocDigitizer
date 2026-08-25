@@ -1,11 +1,27 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { BACKEND_URL, COOKIE_ACCESS, COOKIE_REFRESH, API_PREFIX } from "@/lib/config";
+import {
+  BACKEND_URL,
+  COOKIE_ACCESS,
+  COOKIE_EXPIRES,
+  COOKIE_REFRESH,
+  API_PREFIX,
+} from "@/lib/config";
 import type { TokenResponse } from "@/lib/types";
 
 export function backendUrl(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;
   return `${BACKEND_URL}${API_PREFIX}${normalized}`;
+}
+
+function cookieOpts(httpOnly: boolean, maxAge: number) {
+  return {
+    httpOnly,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+    secure: process.env.NODE_ENV === "production",
+  };
 }
 
 export async function refreshTokens(refreshToken: string): Promise<TokenResponse | null> {
@@ -23,23 +39,18 @@ export async function refreshTokens(refreshToken: string): Promise<TokenResponse
 }
 
 export function setAuthCookies(response: NextResponse, tokens: TokenResponse) {
-  response.cookies.set(COOKIE_ACCESS, tokens.access_token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: tokens.expires_in,
-  });
-  response.cookies.set(COOKIE_REFRESH, tokens.refresh_token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+  const accessTtl = tokens.expires_in > 0 ? tokens.expires_in : 900;
+  response.cookies.set(COOKIE_ACCESS, tokens.access_token, cookieOpts(true, accessTtl));
+  response.cookies.set(COOKIE_REFRESH, tokens.refresh_token, cookieOpts(true, 60 * 60 * 24 * 7));
+  // visible en el browser para renovar el access antes de que expire (15 min)
+  const exp = Math.floor(Date.now() / 1000) + accessTtl - 30;
+  response.cookies.set(COOKIE_EXPIRES, String(exp), cookieOpts(false, 60 * 60 * 24 * 7));
 }
 
 export function clearAuthCookies(response: NextResponse) {
-  response.cookies.set(COOKIE_ACCESS, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
-  response.cookies.set(COOKIE_REFRESH, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+  response.cookies.set(COOKIE_ACCESS, "", cookieOpts(true, 0));
+  response.cookies.set(COOKIE_REFRESH, "", cookieOpts(true, 0));
+  response.cookies.set(COOKIE_EXPIRES, "", cookieOpts(false, 0));
 }
 
 export async function getAuthCookies() {

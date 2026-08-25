@@ -1,3 +1,5 @@
+import { COOKIE_EXPIRES } from "@/lib/config";
+
 export class ApiError extends Error {
   status: number;
   detail: unknown;
@@ -28,6 +30,33 @@ function errorMessage(status: number, body: unknown) {
   return "Ocurrió un error inesperado";
 }
 
+let refreshing: Promise<boolean> | null = null;
+
+function accessExpired() {
+  if (typeof document === "undefined") return false;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${COOKIE_EXPIRES}=([^;]*)`));
+  if (!match) return false;
+  const exp = Number(match[1]);
+  return Number.isFinite(exp) && exp <= Date.now() / 1000;
+}
+
+async function renewSession() {
+  if (!refreshing) {
+    refreshing = fetch("/api/auth/refresh", { method: "POST", credentials: "include" })
+      .then((res) => res.ok)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
+function goToLogin() {
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
@@ -35,19 +64,41 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  let res: Response;
-  try {
-    res = await fetch(`/api/proxy${path.startsWith("/") ? path : `/${path}`}`, {
+  async function send() {
+    return fetch(`/api/proxy${path.startsWith("/") ? path : `/${path}`}`, {
       ...init,
       headers,
       credentials: "include",
     });
+  }
+
+  if (accessExpired()) {
+    const ok = await renewSession();
+    if (!ok) {
+      goToLogin();
+      throw new ApiError(errorMessage(401, null), 401);
+    }
+  }
+
+  let res: Response;
+  try {
+    res = await send();
   } catch {
     throw new ApiError("No se pudo conectar con el frontend proxy", 502);
   }
 
-  if (res.status === 401 && typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-    window.location.href = "/login";
+  if (res.status === 401) {
+    const ok = await renewSession();
+    if (ok) {
+      try {
+        res = await send();
+      } catch {
+        throw new ApiError("No se pudo conectar con el frontend proxy", 502);
+      }
+    }
+    if (res.status === 401) {
+      goToLogin();
+    }
   }
 
   if (res.status === 204) return undefined as T;
