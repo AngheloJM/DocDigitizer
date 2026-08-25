@@ -12,6 +12,9 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === "/login" || pathname === "/") {
+    if (hasSession) {
+      return NextResponse.redirect(new URL("/carpetas", request.url));
+    }
     return NextResponse.next();
   }
 

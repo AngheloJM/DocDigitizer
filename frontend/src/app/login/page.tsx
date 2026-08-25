@@ -28,6 +28,7 @@ export default function LoginPage() {
     setServerError(null);
     try {
       await loginRequest(values.email, values.password);
+      router.replace("/carpetas");
       router.refresh();
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : "No se pudo iniciar sesión");
