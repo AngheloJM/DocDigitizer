@@ -44,7 +44,7 @@ export default function UsuariosPage() {
 
   if (user && !isStaff(user.role)) {
     return (
-      <div className="bg-error-container text-error text-sm rounded-lg px-3 py-2">
+      <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2">
         No tienes permiso para ver la administración de usuarios.
       </div>
     );
@@ -59,9 +59,9 @@ export default function UsuariosPage() {
         </p>
       </div>
 
-      {error && <div className="bg-error-container text-error text-sm rounded-lg px-3 py-2 mb-4">{error}</div>}
+      {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white rounded-2xl border border-gray-200">
         {loading ? (
           <div className="py-8 text-center text-sm text-on-surface-variant">Cargando usuarios...</div>
         ) : items.length === 0 ? (
@@ -94,7 +94,7 @@ export default function UsuariosPage() {
                       <button
                         type="button"
                         onClick={() => void toggleActive(item)}
-                        className="border border-gray-200 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-gray-50"
+                        className="border border-gray-200 text-xs font-medium py-1.5 px-3 rounded-2xl hover:bg-gray-50"
                       >
                         {item.is_active ? "Desactivar" : "Reactivar"}
                       </button>

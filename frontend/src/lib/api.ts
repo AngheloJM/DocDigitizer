@@ -51,8 +51,14 @@ async function renewSession() {
   return refreshing;
 }
 
-function goToLogin() {
-  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+async function goToLogin() {
+  if (typeof window === "undefined") return;
+  try {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  } catch {
+    /* ignore */
+  }
+  if (!window.location.pathname.startsWith("/login")) {
     window.location.href = "/login";
   }
 }
@@ -75,7 +81,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (accessExpired()) {
     const ok = await renewSession();
     if (!ok) {
-      goToLogin();
+      await goToLogin();
       throw new ApiError(errorMessage(401, null), 401);
     }
   }
@@ -97,7 +103,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       }
     }
     if (res.status === 401) {
-      goToLogin();
+      await goToLogin();
     }
   }
 

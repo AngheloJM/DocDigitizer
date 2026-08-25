@@ -37,24 +37,27 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="md:hidden text-on-surface-variant p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+          className="md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-gray-100 transition-colors"
           onClick={onMenuToggle}
         >
           <Icon name="menu" className="text-xl" />
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-on-surface-variant hover:bg-gray-100 hover:text-on-surface transition-colors"
+          className="hidden md:flex items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-gray-100 hover:text-on-surface transition-colors"
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
           <Icon name={sidebarCollapsed ? "menu" : "menu_open"} className="text-xl" />
         </button>
-        <span className="hidden lg:block text-xs font-medium text-on-surface-variant ml-1">UTEPSA</span>
+        <span className="hidden lg:flex items-center gap-2 text-xs font-medium text-on-surface ml-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
+          UTEPSA
+        </span>
       </div>
 
       <form className="flex-1 max-w-lg mx-3 md:mx-6 relative" onSubmit={onSearch}>
-        <div className="relative flex items-center w-full h-9 rounded-lg bg-gray-50 border border-transparent hover:bg-gray-100 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
+        <div className="relative flex items-center w-full h-9 rounded-2xl bg-gray-50 border border-transparent hover:bg-gray-100 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
           <div className="grid place-items-center h-full w-10 text-on-surface-variant">
             <Icon name="search" className="text-lg" />
           </div>
@@ -73,9 +76,9 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
           <button
             type="button"
             onClick={() => setShowUserMenu((value) => !value)}
-            className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors p-1 pr-2 rounded-lg"
+            className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors p-1 pr-2 rounded-2xl"
           >
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
+            <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
               {user ? initials(user.full_name) : "—"}
             </div>
             <div className="hidden sm:block text-left max-w-[180px]">
@@ -89,7 +92,7 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
             <Icon name="expand_more" className="text-base text-on-surface-variant hidden sm:block" />
           </button>
           {showUserMenu && user && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50 animate-fade-in">
+            <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 animate-fade-in">
               <div className="px-4 py-3 border-b border-gray-100">
                 <p className="text-sm font-medium text-on-surface">{user.full_name}</p>
                 <p className="text-xs text-primary font-medium mt-0.5">{ROLE_LABEL[user.role]}</p>

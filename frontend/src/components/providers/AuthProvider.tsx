@@ -27,7 +27,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshUser()
-      .catch(() => {
+      .catch(async () => {
+        await logoutRequest().catch(() => undefined);
         router.replace("/login");
       })
       .finally(() => setLoading(false));

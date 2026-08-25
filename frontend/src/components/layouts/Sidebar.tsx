@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useUi } from "@/components/providers/UiProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { initials, isStaff, ROLE_LABEL } from "@/lib/types";
+import { isStaff } from "@/lib/types";
 
 const navItems = [
   { href: "/carpetas", icon: "inventory_2", label: "Carpetas" },
@@ -40,15 +40,12 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         `}
         style={{ width: isDesktop ? (collapsed ? 72 : 260) : 260 }}
       >
-        <div className={`mb-6 bg-header ${collapsed ? "mx-2 rounded-lg px-1 py-3 flex justify-center" : "mx-3 rounded-lg px-3 py-3 flex flex-col"}`}>
+        <div className={`mb-6 bg-primary border-b-4 border-secondary ${collapsed ? "mx-2 rounded-2xl px-1 py-3 flex justify-center" : "mx-3 rounded-2xl px-3 py-5 flex flex-col items-center"}`}>
           <img
-            src="/logo-utepsa.png"
+            src="/logo-utepsa.png?v=3"
             alt="UTEPSA"
-            className={collapsed ? "h-7 w-7 object-left object-cover" : "h-8 w-auto max-w-full object-contain object-left"}
+            className={collapsed ? "h-8 w-auto max-w-full object-contain" : "h-12 w-auto max-w-full object-contain"}
           />
-          {showLabels && (
-            <p className="text-[10px] text-white/70 uppercase tracking-wider mt-2">DocDigitizer</p>
-          )}
         </div>
 
         <div className={`mb-6 ${collapsed ? "px-3" : "px-4"}`}>
@@ -56,7 +53,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
             href="/documentos?upload=1"
             onClick={onClose}
             title="Subir Documento"
-            className="w-full bg-primary text-white text-sm font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-primary-light transition-colors"
+            className="w-full bg-primary text-white text-sm font-medium py-2.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors"
           >
             <Icon name="upload" className="text-lg shrink-0" />
             {showLabels && <span>Subir Documento</span>}
@@ -73,7 +70,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
                     href={item.href}
                     onClick={onClose}
                     title={item.label}
-                    className={`flex items-center gap-3 py-2.5 text-sm rounded-lg transition-all duration-150 ${
+                    className={`flex items-center gap-3 py-2.5 text-sm rounded-2xl transition-all duration-150 ${
                       collapsed ? "justify-center px-2" : "px-3"
                     } ${
                       isActive
@@ -91,26 +88,6 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         </div>
 
         <div className="mt-auto border-t border-gray-200 pt-3 px-2">
-          <div
-            className={`mb-1 rounded-lg ${collapsed ? "px-1 py-2 flex justify-center" : "px-3 py-2.5"}`}
-            title={user ? `${user.full_name} · ${ROLE_LABEL[user.role]}` : "Cargando usuario"}
-          >
-            <div className={`flex items-center ${collapsed ? "" : "gap-3"}`}>
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
-                {user ? initials(user.full_name) : "—"}
-              </div>
-              {showLabels && (
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-on-surface truncate">
-                    {user?.full_name ?? "Cargando..."}
-                  </p>
-                  <p className="text-xs text-on-surface-variant truncate">
-                    {user ? ROLE_LABEL[user.role] : "Sesión"}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => {
@@ -118,7 +95,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
               void logout();
             }}
             title="Cerrar Sesión"
-            className={`flex items-center gap-3 py-2.5 text-sm text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors rounded-lg w-full ${
+            className={`flex items-center gap-3 py-2.5 text-sm text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors rounded-2xl w-full ${
               collapsed ? "justify-center px-2" : "px-3"
             }`}
           >

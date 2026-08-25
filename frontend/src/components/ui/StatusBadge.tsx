@@ -1,11 +1,11 @@
 import { STATUS_LABEL } from "@/lib/types";
 
 const colorMap: Record<string, string> = {
-  pending: "bg-amber-500",
+  pending: "bg-secondary",
   processing: "bg-primary",
   completed: "bg-emerald-500",
   failed: "bg-red-500",
-  reprocessing: "bg-amber-500",
+  reprocessing: "bg-secondary",
 };
 
 export function StatusBadge({ status }: { status: string }) {
