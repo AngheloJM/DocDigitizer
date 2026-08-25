@@ -17,8 +17,11 @@ export const backend = {
     remove: (id: string) => api<void>(`/folders/${id}`, { method: "DELETE" }),
   },
   documents: {
-    list: (page = 1, perPage = 20) =>
-      api<Paginated<DocumentItem>>(`/documents?page=${page}&per_page=${perPage}`),
+    list: (page = 1, perPage = 20, folderId?: string | null) => {
+      const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+      if (folderId) params.set("folder_id", folderId);
+      return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
+    },
     upload: (form: FormData) =>
       api<{ document_id: string; task_id: string | null; status: string }>("/documents/upload", {
         method: "POST",

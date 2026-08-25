@@ -49,10 +49,6 @@ export default function LoginPage() {
         </div>
         <div>
           <h2 className="text-4xl font-semibold tracking-tight max-w-md">Digitaliza y organiza el archivo institucional.</h2>
-          <p className="mt-4 text-white/75 max-w-md text-sm leading-relaxed">
-            Accede a carpetas, documentos OCR y búsqueda sobre el texto extraído. Las cuentas las crea el personal
-            administrativo.
-          </p>
         </div>
         <p className="text-xs text-white/60">UTEPSA · Archivo central</p>
       </section>

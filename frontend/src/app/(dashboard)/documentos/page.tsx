@@ -169,13 +169,17 @@ function DocumentosContent() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <a
-                        href={backend.documents.downloadUrl(doc.id)}
-                        className="text-on-surface-variant hover:text-primary p-1.5 rounded-md hover:bg-primary/5 inline-flex"
-                        title="Descargar"
-                      >
-                        <Icon name="download" className="text-lg" />
-                      </a>
+                      {doc.status === "completed" ? (
+                        <a
+                          href={backend.documents.downloadUrl(doc.id)}
+                          className="text-on-surface-variant hover:text-primary p-1.5 rounded-md hover:bg-primary/5 inline-flex"
+                          title="Descargar"
+                        >
+                          <Icon name="download" className="text-lg" />
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-on-surface-variant">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

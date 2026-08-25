@@ -3,15 +3,17 @@
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import type { Folder } from "@/lib/types";
+import type { DocumentItem, Folder } from "@/lib/types";
 
 function CarpetasContent() {
   const params = useSearchParams();
   const router = useRouter();
   const parentId = params.get("parent_id");
   const [folders, setFolders] = useState<Folder[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -24,6 +26,12 @@ function CarpetasContent() {
     try {
       const data = await backend.folders.list(parentId);
       setFolders(data);
+      if (parentId) {
+        const docs = await backend.documents.list(1, 20, parentId);
+        setDocuments(docs.items);
+      } else {
+        setDocuments([]);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudieron cargar las carpetas");
     } finally {
@@ -127,11 +135,12 @@ function CarpetasContent() {
 
       {loading ? (
         <p className="text-sm text-on-surface-variant">Cargando carpetas...</p>
-      ) : folders.length === 0 ? (
+      ) : folders.length === 0 && documents.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 py-12 text-center text-sm text-on-surface-variant">
-          No hay carpetas todavía. Crea la primera para empezar.
+          {parentId ? "Esta carpeta está vacía." : "No hay carpetas todavía. Crea la primera para empezar."}
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {folders.map((folder) => (
             <div key={folder.id} className="bg-white rounded-xl p-5 border border-gray-200 flex flex-col gap-3">
@@ -155,6 +164,29 @@ function CarpetasContent() {
             </div>
           ))}
         </div>
+        {parentId && documents.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 mt-6">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-sm font-semibold text-on-surface">Documentos de esta carpeta</h3>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {documents.map((doc) => (
+                <li key={doc.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-on-surface">{doc.title}</p>
+                    <StatusBadge status={doc.status} />
+                  </div>
+                  {doc.status === "completed" && (
+                    <a href={backend.documents.downloadUrl(doc.id)} className="text-primary text-sm">
+                      Descargar
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        </>
       )}
     </>
   );
