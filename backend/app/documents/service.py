@@ -8,15 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.permissions import is_staff
+from app.config import get_settings
 from app.documents.models import AuditLog, Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.folders.models import Folder
 from app.storage.minio_client import delete_object, download_bytes, upload_bytes
 
+settings = get_settings()
+
 MAX_UPLOAD_SIZE_BYTES = 20 * 1024 * 1024
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "tiff", "tif", "bmp", "pdf"}
-ORIGINALS_BUCKET = "originals"
-PROCESSED_BUCKET = "processed"
 
 
 class NoDownloadableFileError(Exception):
@@ -85,10 +86,10 @@ async def attach_file_to_document(
         raise DocumentAlreadyHasFileError("Este documento ya tiene un archivo asociado")
 
     sha256_hash = hashlib.sha256(file_bytes).hexdigest()
-    minio_path = f"{document.user_id}/{document.id}.{extension}"
+    minio_path = f"originals/{document.user_id}/{document.id}.{extension}"
     content_type = _CONTENT_TYPE_BY_EXTENSION.get(extension, "application/octet-stream")
 
-    upload_bytes(ORIGINALS_BUCKET, minio_path, file_bytes, content_type)
+    upload_bytes(settings.minio_bucket_originals, minio_path, file_bytes, content_type)
 
     width_px, height_px = _image_dimensions(file_bytes, extension)
 
@@ -256,7 +257,7 @@ async def get_downloadable_file(db: AsyncSession, document: Document) -> tuple[b
     ).scalar_one_or_none()
 
     if generated_pdf is not None:
-        data = download_bytes(PROCESSED_BUCKET, generated_pdf.minio_path)
+        data = download_bytes(settings.minio_bucket_processed, generated_pdf.minio_path)
         return data, f"{document.title}.pdf", "application/pdf"
 
     original_image = (
@@ -266,7 +267,7 @@ async def get_downloadable_file(db: AsyncSession, document: Document) -> tuple[b
     if original_image is None:
         raise NoDownloadableFileError("Este documento no tiene ningun archivo asociado todavia")
 
-    data = download_bytes(ORIGINALS_BUCKET, original_image.minio_path)
+    data = download_bytes(settings.minio_bucket_originals, original_image.minio_path)
     content_type = _CONTENT_TYPE_BY_EXTENSION.get(original_image.file_format, "application/octet-stream")
     return data, f"{document.title}.{original_image.file_format}", content_type
 
@@ -275,12 +276,17 @@ async def delete_document(db: AsyncSession, document: Document) -> None:
     original_image = (
         await db.execute(select(OriginalImage).where(OriginalImage.document_id == document.id))
     ).scalar_one_or_none()
+    generated_pdfs = (
+        await db.execute(select(GeneratedPdf).where(GeneratedPdf.document_id == document.id))
+    ).scalars().all()
 
     await db.delete(document)
     await db.commit()
 
     if original_image is not None:
-        delete_object(ORIGINALS_BUCKET, original_image.minio_path)
+        delete_object(settings.minio_bucket_originals, original_image.minio_path)
+    for generated_pdf in generated_pdfs:
+        delete_object(settings.minio_bucket_processed, generated_pdf.minio_path)
 
 
 async def log_audit_action(
