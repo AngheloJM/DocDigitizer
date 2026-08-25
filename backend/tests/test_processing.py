@@ -59,7 +59,7 @@ def test_correct_perspective_skips_image_without_quadrilateral():
 
 def test_correct_perspective_warps_quadrilateral():
     quad_img = np.full((300, 300, 3), 255, dtype=np.uint8)
-    points = np.array([[80, 40], [260, 80], [220, 260], [40, 220]], dtype=np.int32)
+    points = np.array([[10, 5], [295, 15], [285, 295], [5, 285]], dtype=np.int32)
     cv2.fillPoly(quad_img, [points], (0, 0, 0))
     cv2.rectangle(quad_img, (110, 110), (190, 190), (255, 255, 255), -1)
 
@@ -67,3 +67,28 @@ def test_correct_perspective_warps_quadrilateral():
 
     assert metadata["perspective_corrected"] is True
     assert result.shape[0] > 0 and result.shape[1] > 0
+
+
+def test_correct_perspective_rejects_small_quadrilateral():
+    quad_img = np.full((300, 300, 3), 255, dtype=np.uint8)
+    points = np.array([[80, 40], [260, 80], [220, 260], [40, 220]], dtype=np.int32)
+    cv2.fillPoly(quad_img, [points], (0, 0, 0))
+    cv2.rectangle(quad_img, (110, 110), (190, 190), (255, 255, 255), -1)
+
+    result, metadata = correct_perspective(quad_img)
+
+    assert metadata["perspective_corrected"] is False
+    assert metadata["reason"] == "quadrilateral_too_small"
+    assert result.shape == quad_img.shape
+
+
+def test_correct_perspective_disabled_for_pdf_source():
+    quad_img = np.full((300, 300, 3), 255, dtype=np.uint8)
+    points = np.array([[10, 5], [295, 15], [285, 295], [5, 285]], dtype=np.int32)
+    cv2.fillPoly(quad_img, [points], (0, 0, 0))
+
+    result, metadata = correct_perspective(quad_img, {"enabled": False})
+
+    assert metadata["perspective_corrected"] is False
+    assert metadata["reason"] == "disabled_for_source"
+    assert result is quad_img
