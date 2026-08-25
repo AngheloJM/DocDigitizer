@@ -1,9 +1,26 @@
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 INSECURE_SECRET_KEYS = {"changeme", "secret", "", "test"}
+
+
+def _normalize_asyncpg_url(value: str) -> str:
+    split = urlsplit(value)
+    if "+asyncpg" not in split.scheme or not split.query:
+        return value
+
+    query = dict(parse_qsl(split.query))
+    query.pop("channel_binding", None)
+
+    sslmode = query.pop("sslmode", None)
+    if sslmode is not None and sslmode.lower() != "disable" and "ssl" not in query:
+        query["ssl"] = "require"
+
+    new_query = urlencode(query)
+    return urlunsplit((split.scheme, split.netloc, split.path, new_query, split.fragment))
 
 
 class Settings(BaseSettings):
@@ -24,6 +41,11 @@ class Settings(BaseSettings):
         return value
 
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        return _normalize_asyncpg_url(value)
 
     redis_url: str
     celery_broker_url: str
