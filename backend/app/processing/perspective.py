@@ -14,8 +14,15 @@ def _order_corners(points: np.ndarray) -> np.ndarray:
     return rect
 
 
+MIN_QUADRILATERAL_AREA_RATIO = 0.85
+
+
 def correct_perspective(image: np.ndarray, config: dict | None = None) -> tuple[np.ndarray, dict]:
     config = config or {}
+
+    if not config.get("enabled", True):
+        return image, {"perspective_corrected": False, "reason": "disabled_for_source"}
+
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if image.ndim == 3 else image
     edges = cv2.Canny(gray, config.get("canny_low", 50), config.get("canny_high", 150))
     contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -29,6 +36,12 @@ def correct_perspective(image: np.ndarray, config: dict | None = None) -> tuple[
 
     if len(approx) != 4:
         return image, {"perspective_corrected": False, "reason": "no_quadrilateral"}
+
+    image_area = gray.shape[0] * gray.shape[1]
+    quad_area = cv2.contourArea(approx)
+    min_area_ratio = config.get("min_area_ratio", MIN_QUADRILATERAL_AREA_RATIO)
+    if image_area <= 0 or (quad_area / image_area) < min_area_ratio:
+        return image, {"perspective_corrected": False, "reason": "quadrilateral_too_small"}
 
     corners = _order_corners(approx.reshape(4, 2).astype("float32"))
     (top_left, top_right, bottom_right, bottom_left) = corners

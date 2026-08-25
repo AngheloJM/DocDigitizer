@@ -49,7 +49,8 @@ def _normalize(file_bytes: bytes, file_format: str) -> tuple[np.ndarray, int]:
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     image, pages_in_source = _normalize(file_bytes, file_format)
 
-    image, perspective_meta = correct_perspective(image)
+    perspective_config = {"enabled": file_format != "pdf"}
+    image, perspective_meta = correct_perspective(image, perspective_config)
     image, denoise_meta = denoise(image)
     image, binarize_meta = binarize(image)
     image, deskew_meta = deskew(image)
