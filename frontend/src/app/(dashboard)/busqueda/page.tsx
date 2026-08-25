@@ -51,12 +51,12 @@ function BusquedaContent() {
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="bg-white rounded-2xl p-5 border border-gray-200 mb-6 flex gap-3">
+      <form onSubmit={onSubmit} className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 flex gap-3">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Ej: calificación"
-          className="flex-1 border border-gray-200 rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+          className="flex-1 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
         />
         <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-2xl hover:bg-primary-light">
           Buscar
@@ -67,15 +67,15 @@ function BusquedaContent() {
       {loading && <p className="text-sm text-on-surface-variant">Buscando...</p>}
 
       {!loading && results.length === 0 && query.trim() && !error && (
-        <div className="bg-white rounded-2xl border border-gray-200 py-12 text-center text-sm text-on-surface-variant">
-          <Icon name="search_off" className="text-3xl text-gray-300 block mx-auto mb-2" />
+        <div className="bg-white rounded-2xl border border-outline-variant py-12 text-center text-sm text-on-surface-variant">
+          <Icon name="search_off" className="text-3xl text-outline block mx-auto mb-2" />
           No se encontraron resultados para “{query}”
         </div>
       )}
 
       <ul className="space-y-3">
         {results.map((item) => (
-          <li key={item.document.id} className="bg-white rounded-2xl p-5 border border-gray-200">
+          <li key={item.document.id} className="bg-white rounded-2xl p-5 border border-outline-variant">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium text-on-surface">{item.document.title}</p>

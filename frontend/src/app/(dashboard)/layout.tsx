@@ -21,7 +21,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         style={{ marginLeft }}
       >
         <TopBar onMenuToggle={() => setMobileMenuOpen(true)} />
-        <main className="flex-1 p-4 md:px-10 md:py-8 overflow-y-auto bg-gray-50/30">{children}</main>
+        <main className="flex-1 p-4 md:px-10 md:py-8 overflow-y-auto bg-surface-container">{children}</main>
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ const navItems = [
 
 export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { sidebarCollapsed } = useUi();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
   const collapsed = isDesktop && sidebarCollapsed;
@@ -34,13 +34,19 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
 
       <nav
         className={`
-          fixed left-0 top-0 h-full border-r border-gray-200 bg-white z-40
+          fixed left-0 top-0 h-full border-r border-outline-variant bg-white z-40
           flex flex-col py-6 transition-all duration-300 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
         `}
         style={{ width: isDesktop ? (collapsed ? 72 : 260) : 260 }}
       >
-        <div className={`mb-6 bg-primary border-b-4 border-secondary ${collapsed ? "mx-2 rounded-2xl px-1 py-3 flex justify-center" : "mx-3 rounded-2xl px-3 py-5 flex flex-col items-center"}`}>
+        <div
+          className={`mb-6 bg-primary border-b-4 border-secondary ${
+            collapsed
+              ? "mx-2 rounded-2xl px-1 py-3 flex justify-center"
+              : "mx-3 rounded-2xl px-3 py-5 flex flex-col items-center"
+          }`}
+        >
           <img
             src="/logo-utepsa.png?v=3"
             alt="UTEPSA"
@@ -75,11 +81,19 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
                     } ${
                       isActive
                         ? "bg-primary/5 text-primary font-medium"
-                        : "text-on-surface-variant hover:bg-gray-50 hover:text-on-surface"
+                        : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                     }`}
                   >
-                    <Icon name={item.icon} className="text-xl shrink-0" />
-                    {showLabels && <span className="truncate">{item.label}</span>}
+                    <Icon
+                      name={item.icon}
+                      className={`text-xl shrink-0 ${isActive ? "text-primary" : ""}`}
+                    />
+                    {showLabels && (
+                      <span className="truncate flex-1">{item.label}</span>
+                    )}
+                    {showLabels && isActive && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
+                    )}
                   </Link>
                 </li>
               );
@@ -87,21 +101,19 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
           </ul>
         </div>
 
-        <div className="mt-auto border-t border-gray-200 pt-3 px-2">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              void logout();
-            }}
-            title="Cerrar Sesión"
-            className={`flex items-center gap-3 py-2.5 text-sm text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors rounded-2xl w-full ${
-              collapsed ? "justify-center px-2" : "px-3"
-            }`}
-          >
-            <Icon name="logout" className="text-xl shrink-0" />
-            {showLabels && <span>Cerrar Sesión</span>}
-          </button>
+        <div className="mt-auto border-t border-outline-variant pt-3 px-3 pb-1">
+          {showLabels ? (
+            <div className="px-1 py-2 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">UTEPSA</p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                Archivo central · {new Date().getFullYear()}
+              </p>
+            </div>
+          ) : (
+            <div className="flex justify-center py-2" title={`UTEPSA ${new Date().getFullYear()}`}>
+              <span className="w-2 h-2 rounded-full bg-secondary" />
+            </div>
+          )}
         </div>
       </nav>
     </>

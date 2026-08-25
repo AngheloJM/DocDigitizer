@@ -42,7 +42,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, loading, refreshUser, logout }}>
-      {children}
+      {loading ? (
+        <div className="min-h-screen flex items-center justify-center bg-surface-container">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <p className="text-sm text-on-surface-variant">Cargando sesión...</p>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

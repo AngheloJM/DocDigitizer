@@ -8,7 +8,7 @@ import { useUi } from "@/components/providers/UiProvider";
 import { initials, ROLE_LABEL } from "@/lib/types";
 
 export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, loading } = useAuth();
   const { sidebarCollapsed, toggleSidebar } = useUi();
   const [query, setQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -33,36 +33,36 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
   }
 
   return (
-    <header className="flex justify-between items-center w-full px-4 md:px-8 h-14 sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-200">
+    <header className="flex justify-between items-center w-full px-4 md:px-8 h-14 sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-outline-variant">
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className="md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-gray-100 transition-colors"
+          className="md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-surface-container transition-colors"
           onClick={onMenuToggle}
         >
           <Icon name="menu" className="text-xl" />
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-gray-100 hover:text-on-surface transition-colors"
+          className="hidden md:flex items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
           <Icon name={sidebarCollapsed ? "menu" : "menu_open"} className="text-xl" />
         </button>
-        <span className="hidden lg:flex items-center gap-2 text-xs font-medium text-on-surface ml-1">
+        <span className="hidden lg:flex items-center gap-2 text-xs font-semibold text-on-surface ml-1">
           <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
           UTEPSA
         </span>
       </div>
 
       <form className="flex-1 max-w-lg mx-3 md:mx-6 relative" onSubmit={onSearch}>
-        <div className="relative flex items-center w-full h-9 rounded-2xl bg-gray-50 border border-transparent hover:bg-gray-100 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
+        <div className="relative flex items-center w-full h-9 rounded-2xl bg-surface-container border border-transparent hover:bg-surface-container-high focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
           <div className="grid place-items-center h-full w-10 text-on-surface-variant">
             <Icon name="search" className="text-lg" />
           </div>
           <input
-            className="peer h-full w-full outline-none text-sm text-on-surface bg-transparent pr-3 border-none focus:ring-0 placeholder:text-gray-400"
+            className="peer h-full w-full outline-none text-sm text-on-surface bg-transparent pr-3 border-none focus:ring-0 placeholder:text-on-surface-variant/60"
             placeholder="Buscar documentos..."
             type="text"
             value={query}
@@ -76,36 +76,52 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
           <button
             type="button"
             onClick={() => setShowUserMenu((value) => !value)}
-            className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition-colors p-1 pr-2 rounded-2xl"
+            className="flex items-center gap-2.5 cursor-pointer hover:bg-surface-container transition-colors p-1 pr-2.5 rounded-2xl"
+            aria-expanded={showUserMenu}
+            aria-haspopup="menu"
           >
-            <div className="w-8 h-8 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs">
-              {user ? initials(user.full_name) : "—"}
+            <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-secondary/40">
+              {user ? initials(user.full_name) : loading ? "…" : "—"}
             </div>
             <div className="hidden sm:block text-left max-w-[180px]">
               <p className="text-sm font-medium text-on-surface leading-tight truncate">
-                {user?.full_name ?? "Cargando..."}
+                {user?.full_name ?? (loading ? "Cargando..." : "Sin sesión")}
               </p>
-              <p className="text-xs text-on-surface-variant truncate">
-                {user ? ROLE_LABEL[user.role] : "Sesión"}
+              <p className="text-[11px] text-primary font-medium truncate">
+                {user ? ROLE_LABEL[user.role] : "—"}
               </p>
             </div>
             <Icon name="expand_more" className="text-base text-on-surface-variant hidden sm:block" />
           </button>
+
           {showUserMenu && user && (
-            <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden z-50 animate-fade-in">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-medium text-on-surface">{user.full_name}</p>
-                <p className="text-xs text-primary font-medium mt-0.5">{ROLE_LABEL[user.role]}</p>
-                <p className="text-xs text-on-surface-variant mt-1">{user.email}</p>
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-2 w-64 bg-white border border-outline-variant rounded-2xl shadow-lg overflow-hidden z-50 animate-fade-in"
+            >
+              <div className="px-4 py-4 bg-primary/5 border-b border-outline-variant">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-sm ring-2 ring-secondary">
+                    {initials(user.full_name)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-on-surface truncate">{user.full_name}</p>
+                    <span className="inline-flex mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
+                      {ROLE_LABEL[user.role]}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-3 truncate">{user.email}</p>
               </div>
-              <div className="border-t border-gray-100 py-1">
+              <div className="py-1">
                 <button
                   type="button"
+                  role="menuitem"
                   onClick={() => void logout()}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-error hover:bg-error-container transition-colors"
                 >
                   <Icon name="logout" className="text-lg" />
-                  Cerrar Sesión
+                  Cerrar sesión
                 </button>
               </div>
             </div>

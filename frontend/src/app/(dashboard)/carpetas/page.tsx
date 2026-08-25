@@ -137,7 +137,7 @@ function CarpetasContent() {
       )}
 
       {uploading && parentId && (
-        <form onSubmit={onUpload} className="bg-white rounded-2xl p-5 border border-gray-200 mb-6 space-y-4">
+        <form onSubmit={onUpload} className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 space-y-4">
           <h3 className="text-sm font-semibold text-on-surface">Subir a esta carpeta</h3>
           <p className="text-xs text-on-surface-variant">
             Formatos: png, jpg, jpeg, tiff, bmp, pdf. Máximo 20 MB. Si el PDF tiene varias páginas, solo se procesa la primera.
@@ -148,7 +148,7 @@ function CarpetasContent() {
               required
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-gray-200 rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
           <div>
@@ -165,7 +165,7 @@ function CarpetasContent() {
             <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-2xl hover:bg-primary-light">
               Subir
             </button>
-            <button type="button" onClick={() => setUploading(false)} className="border border-gray-200 text-sm py-2 px-4 rounded-2xl">
+            <button type="button" onClick={() => setUploading(false)} className="border border-outline-variant text-sm py-2 px-4 rounded-2xl">
               Cancelar
             </button>
           </div>
@@ -173,7 +173,7 @@ function CarpetasContent() {
       )}
 
       {creating && (
-        <form onSubmit={onCreate} className="bg-white rounded-2xl p-5 border border-gray-200 mb-6 space-y-4">
+        <form onSubmit={onCreate} className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 space-y-4">
           <h3 className="text-sm font-semibold text-on-surface">Crear carpeta</h3>
           <div>
             <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">Nombre</label>
@@ -181,7 +181,7 @@ function CarpetasContent() {
               required
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full border border-gray-200 rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
           <div>
@@ -191,14 +191,14 @@ function CarpetasContent() {
             <input
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              className="w-full border border-gray-200 rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
           <div className="flex gap-2">
             <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-2xl hover:bg-primary-light">
               Guardar
             </button>
-            <button type="button" onClick={() => setCreating(false)} className="border border-gray-200 text-sm py-2 px-4 rounded-2xl">
+            <button type="button" onClick={() => setCreating(false)} className="border border-outline-variant text-sm py-2 px-4 rounded-2xl">
               Cancelar
             </button>
           </div>
@@ -210,14 +210,14 @@ function CarpetasContent() {
       {loading ? (
         <p className="text-sm text-on-surface-variant">Cargando carpetas...</p>
       ) : folders.length === 0 && documents.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-200 py-12 text-center text-sm text-on-surface-variant">
+        <div className="bg-white rounded-2xl border border-outline-variant py-12 text-center text-sm text-on-surface-variant">
           {parentId ? "Esta carpeta está vacía." : "No hay carpetas todavía. Crea la primera para empezar."}
         </div>
       ) : (
         <>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {folders.map((folder) => (
-            <div key={folder.id} className="bg-white rounded-2xl p-5 border border-gray-200 flex flex-col gap-3">
+            <div key={folder.id} className="bg-white rounded-2xl p-5 border border-outline-variant flex flex-col gap-3">
               <button type="button" className="text-left" onClick={() => router.push(`/carpetas?parent_id=${folder.id}`)}>
                 <div className="w-10 h-10 rounded-2xl bg-primary/5 text-primary flex items-center justify-center mb-3">
                   <Icon name="folder" className="text-xl" />
@@ -229,7 +229,7 @@ function CarpetasContent() {
                 <button
                   type="button"
                   onClick={() => void onDelete(folder.id)}
-                  className="text-on-surface-variant hover:text-red-600 p-1.5 rounded-2xl hover:bg-red-50"
+                  className="text-on-surface-variant hover:text-error p-1.5 rounded-2xl hover:bg-error-container"
                   title="Eliminar"
                 >
                   <Icon name="delete" className="text-lg" />
@@ -239,11 +239,11 @@ function CarpetasContent() {
           ))}
         </div>
         {parentId && documents.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-200 mt-6">
-            <div className="p-4 border-b border-gray-200">
+          <div className="bg-white rounded-2xl border border-outline-variant mt-6">
+            <div className="p-4 border-b border-outline-variant">
               <h3 className="text-sm font-semibold text-on-surface">Documentos de esta carpeta</h3>
             </div>
-            <ul className="divide-y divide-gray-100">
+            <ul className="divide-y divide-outline-variant">
               {documents.map((doc) => (
                 <li key={doc.id} className="px-4 py-3 flex items-center justify-between gap-3">
                   <div>
