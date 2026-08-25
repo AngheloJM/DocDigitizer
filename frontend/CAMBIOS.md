@@ -40,6 +40,18 @@ La tabla quedó en título, estado y descarga (cuando ya terminó el OCR). Saqu�
 ### Layout
 El dashboard ya no tapa toda la pantalla con "Cargando sesión...". Se ve el menú mientras llega `/me`.
 
+### Sesión (401 al expirar el access token)
+El access JWT dura 15 minutos. El refresh dura 7 días y es de un solo uso.
+
+Lo que pasaba: al vencer el access, la cookie se borraba. El proxy a veces renovaba el token, pero las cookies nuevas no quedaban (respuesta en stream). El refresh ya se había gastado y la siguiente petición era 401.
+
+Ahora:
+- En producción las cookies van con `secure`.
+- Hay un `dd_exp` (no httpOnly) para renovar el access un poco antes de que caduque.
+- `POST /api/auth/refresh` deja el par nuevo de tokens.
+- Si varias pantallas piden datos a la vez, solo se hace un refresh.
+- Si el proxy sí renueva, copia el body a un buffer y recién ahí guarda las cookies (si no, Vercel se las come).
+
 ## Archivos
 
 - `frontend/src/app/api/proxy/[...path]/route.ts`
@@ -49,6 +61,10 @@ El dashboard ya no tapa toda la pantalla con "Cargando sesión...". Se ve el men
 - `frontend/src/app/(dashboard)/carpetas/page.tsx`
 - `frontend/src/app/(dashboard)/documentos/page.tsx`
 - `frontend/src/app/(dashboard)/usuarios/page.tsx`
+- `frontend/src/lib/auth-cookies.ts`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/config.ts`
+- `frontend/src/app/api/auth/refresh/route.ts`
 
 ## Cómo probar
 

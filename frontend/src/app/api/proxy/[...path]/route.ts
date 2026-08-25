@@ -31,10 +31,17 @@ async function proxy(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    let upstream = await forward(access);
+    let token = access;
     let tokens: TokenResponse | null = null;
 
-    if (upstream.status === 401 && refresh) {
+    if (!token && refresh) {
+      tokens = await refreshTokens(refresh);
+      if (tokens) token = tokens.access_token;
+    }
+
+    let upstream = await forward(token);
+
+    if (upstream.status === 401 && refresh && !tokens) {
       tokens = await refreshTokens(refresh);
       if (tokens) {
         upstream = await forward(tokens.access_token);
@@ -42,18 +49,25 @@ async function proxy(request: NextRequest, context: RouteContext) {
     }
 
     const responseHeaders = new Headers();
-    const pass = ["content-type", "content-disposition"];
-    for (const name of pass) {
+    for (const name of ["content-type", "content-disposition"]) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);
     }
 
-    const response = new NextResponse(upstream.body, {
+    if (tokens) {
+      const buf = await upstream.arrayBuffer();
+      const response = new NextResponse(buf, {
+        status: upstream.status,
+        headers: responseHeaders,
+      });
+      setAuthCookies(response, tokens);
+      return response;
+    }
+
+    return new NextResponse(upstream.body, {
       status: upstream.status,
       headers: responseHeaders,
     });
-    if (tokens) setAuthCookies(response, tokens);
-    return response;
   } catch {
     return NextResponse.json(
       { detail: "No se pudo conectar con el backend en http://127.0.0.1:8001" },
