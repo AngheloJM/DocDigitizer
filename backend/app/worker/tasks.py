@@ -42,7 +42,7 @@ async def _process_document(document_id: uuid.UUID) -> None:
             image_bytes = download_bytes(settings.minio_bucket_originals, original_image.minio_path)
             result = process_image_bytes(image_bytes, original_image.file_format)
 
-            pdf_path = f"{document.user_id}/{document.id}.pdf"
+            pdf_path = f"processed/{document.user_id}/{document.id}.pdf"
             upload_bytes(
                 settings.minio_bucket_processed, pdf_path, result["pdf_bytes"], "application/pdf"
             )
