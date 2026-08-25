@@ -40,15 +40,14 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
         `}
         style={{ width: isDesktop ? (collapsed ? 72 : 260) : 260 }}
       >
-        <div className={`px-4 mb-8 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0">
-            <Icon name="school" className="text-lg" />
-          </div>
+        <div className={`mb-6 bg-header ${collapsed ? "mx-2 rounded-lg px-1 py-3 flex justify-center" : "mx-3 rounded-lg px-3 py-3 flex flex-col"}`}>
+          <img
+            src="/logo-utepsa.png"
+            alt="UTEPSA"
+            className={collapsed ? "h-7 w-7 object-left object-cover" : "h-8 w-auto max-w-full object-contain object-left"}
+          />
           {showLabels && (
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold text-on-surface tracking-tight leading-none">DocDigitizer</h1>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Gestión Documental</p>
-            </div>
+            <p className="text-[10px] text-white/70 uppercase tracking-wider mt-2">DocDigitizer</p>
           )}
         </div>
 

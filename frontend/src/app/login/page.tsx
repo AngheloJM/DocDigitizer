@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Icon } from "@/components/ui/Icon";
 import { ApiError, loginRequest } from "@/lib/api";
 
 const schema = z.object({
@@ -37,32 +36,18 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-white">
-      <section className="hidden lg:flex flex-col justify-between bg-primary text-white p-12">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-lg bg-white/15 flex items-center justify-center">
-            <Icon name="school" className="text-2xl" />
-          </div>
-          <div>
-            <p className="text-xl font-bold leading-none">DocDigitizer</p>
-            <p className="text-[10px] uppercase tracking-wider text-white/70 mt-1">Gestión Documental</p>
-          </div>
-        </div>
+      <section className="hidden lg:flex flex-col justify-between bg-header text-white p-12">
+        <img src="/logo-utepsa.png" alt="UTEPSA" className="h-12 w-auto max-w-[280px] object-contain object-left" />
         <div>
           <h2 className="text-4xl font-semibold tracking-tight max-w-md">Digitaliza y organiza el archivo institucional.</h2>
         </div>
-        <p className="text-xs text-white/60">UTEPSA · Archivo central</p>
+        <p className="text-xs text-white/60">DocDigitizer · Archivo central</p>
       </section>
 
       <section className="flex items-center justify-center p-6 md:p-12">
         <div className="w-full max-w-md">
-          <div className="lg:hidden flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white">
-              <Icon name="school" className="text-xl" />
-            </div>
-            <div>
-              <p className="text-lg font-bold leading-none">DocDigitizer</p>
-              <p className="text-[10px] uppercase tracking-wider text-on-surface-variant mt-1">Gestión Documental</p>
-            </div>
+          <div className="lg:hidden mb-8 bg-header rounded-lg px-4 py-3">
+            <img src="/logo-utepsa.png" alt="UTEPSA" className="h-9 w-auto max-w-[220px] object-contain object-left" />
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight text-on-surface mb-8">Iniciar sesión</h1>
