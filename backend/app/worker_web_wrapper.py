@@ -10,7 +10,15 @@ _worker_process: subprocess.Popen | None = None
 async def lifespan(app: FastAPI):
     global _worker_process
     _worker_process = subprocess.Popen(
-        ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info"]
+        [
+            "celery",
+            "-A",
+            "app.worker.celery_app",
+            "worker",
+            "--loglevel=info",
+            "--concurrency=1",
+            "--pool=solo",
+        ]
     )
     yield
     if _worker_process is not None:
