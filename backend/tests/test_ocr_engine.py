@@ -25,24 +25,36 @@ def test_extract_text_uses_tesseract_when_confidence_is_high():
     assert result["ocr_confidence"] > 0
 
 
-def test_extract_text_falls_back_to_easyocr_when_confidence_is_low():
+def test_extract_text_falls_back_to_easyocr_when_confidence_is_low_and_enabled():
     blank_image = np.full((50, 50, 3), 255, dtype=np.uint8)
 
-    with patch.object(ocr_engine, "_tesseract_extract", return_value=("", 0.0)):
-        with patch.object(
-            ocr_engine, "_easyocr_extract", return_value=("texto de respaldo", 80.0)
-        ) as mock_easyocr:
-            result = extract_text(blank_image)
+    with patch.object(ocr_engine.get_settings(), "enable_easyocr_fallback", True):
+        with patch.object(ocr_engine, "_tesseract_extract", return_value=("", 0.0)):
+            with patch.object(
+                ocr_engine, "_easyocr_extract", return_value=("texto de respaldo", 80.0)
+            ) as mock_easyocr:
+                result = extract_text(blank_image)
 
     mock_easyocr.assert_called_once()
     assert result["ocr_engine"] == "easyocr"
     assert result["raw_text"] == "texto de respaldo"
 
 
+def test_extract_text_skips_easyocr_when_fallback_disabled():
+    with patch.object(ocr_engine.get_settings(), "enable_easyocr_fallback", False):
+        with patch.object(ocr_engine, "_tesseract_extract", return_value=("", 0.0)):
+            with patch.object(ocr_engine, "_easyocr_extract") as mock_easyocr:
+                result = extract_text(np.full((50, 50, 3), 255, dtype=np.uint8))
+
+    mock_easyocr.assert_not_called()
+    assert result["ocr_engine"] == "tesseract"
+
+
 def test_extract_text_keeps_tesseract_if_fallback_is_not_better():
-    with patch.object(ocr_engine, "_tesseract_extract", return_value=("texto original", 70.0)):
-        with patch.object(ocr_engine, "_easyocr_extract", return_value=("texto peor", 40.0)):
-            result = extract_text(np.full((50, 50, 3), 255, dtype=np.uint8))
+    with patch.object(ocr_engine.get_settings(), "enable_easyocr_fallback", True):
+        with patch.object(ocr_engine, "_tesseract_extract", return_value=("texto original", 70.0)):
+            with patch.object(ocr_engine, "_easyocr_extract", return_value=("texto peor", 40.0)):
+                result = extract_text(np.full((50, 50, 3), 255, dtype=np.uint8))
 
     assert result["ocr_engine"] == "tesseract"
     assert result["raw_text"] == "texto original"

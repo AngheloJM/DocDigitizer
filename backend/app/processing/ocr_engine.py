@@ -1,6 +1,8 @@
 import numpy as np
 import pytesseract
 
+from app.config import get_settings
+
 MIN_CONFIDENCE_THRESHOLD = 60.0
 
 
@@ -32,7 +34,7 @@ def extract_text(
     text, confidence = _tesseract_extract(image, lang=lang)
     engine = "tesseract"
 
-    if confidence < min_confidence:
+    if confidence < min_confidence and get_settings().enable_easyocr_fallback:
         fallback_text, fallback_confidence = _easyocr_extract(image)
         if fallback_confidence > confidence:
             text, confidence, engine = fallback_text, fallback_confidence, "easyocr"

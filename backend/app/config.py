@@ -68,6 +68,8 @@ class Settings(BaseSettings):
 
     worker_wake_url: str | None = None
 
+    enable_easyocr_fallback: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:
