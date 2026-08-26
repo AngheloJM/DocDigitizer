@@ -25,12 +25,20 @@ class Document(Base):
             "status IN ('pending', 'processing', 'completed', 'failed', 'reprocessing')",
             name="ck_documents_status",
         ),
+        CheckConstraint(
+            "archived_month_start IS NULL OR archived_month_start BETWEEN 1 AND 12",
+            name="ck_documents_archived_month_start",
+        ),
+        CheckConstraint(
+            "archived_month_end IS NULL OR archived_month_end BETWEEN 1 AND 12",
+            name="ck_documents_archived_month_end",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    doc_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    doc_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending", index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -43,6 +51,9 @@ class Document(Base):
     physical_division: Mapped[str | None] = mapped_column(String(50), nullable=True)
     physical_column: Mapped[str | None] = mapped_column(String(50), nullable=True)
     physical_volume: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    archived_year: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    archived_month_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    archived_month_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )

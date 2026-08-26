@@ -7,23 +7,29 @@ from pydantic import BaseModel, ConfigDict, Field
 class DocumentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    doc_type: str | None = Field(default=None, max_length=50)
+    doc_type: str | None = Field(default=None, max_length=100)
     folder_id: uuid.UUID | None = None
     physical_shelf: str | None = Field(default=None, max_length=50)
     physical_division: str | None = Field(default=None, max_length=50)
     physical_column: str | None = Field(default=None, max_length=50)
     physical_volume: str | None = Field(default=None, max_length=50)
+    archived_year: int | None = None
+    archived_month_start: int | None = Field(default=None, ge=1, le=12)
+    archived_month_end: int | None = Field(default=None, ge=1, le=12)
 
 
 class DocumentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    doc_type: str | None = Field(default=None, max_length=50)
+    doc_type: str | None = Field(default=None, max_length=100)
     folder_id: uuid.UUID | None = None
     physical_shelf: str | None = Field(default=None, max_length=50)
     physical_division: str | None = Field(default=None, max_length=50)
     physical_column: str | None = Field(default=None, max_length=50)
     physical_volume: str | None = Field(default=None, max_length=50)
+    archived_year: int | None = None
+    archived_month_start: int | None = Field(default=None, ge=1, le=12)
+    archived_month_end: int | None = Field(default=None, ge=1, le=12)
 
 
 class DocumentResponse(BaseModel):
@@ -40,6 +46,9 @@ class DocumentResponse(BaseModel):
     physical_division: str | None
     physical_column: str | None
     physical_volume: str | None
+    archived_year: int | None
+    archived_month_start: int | None
+    archived_month_end: int | None
     created_at: datetime
     processed_at: datetime | None
 
