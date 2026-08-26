@@ -2,6 +2,31 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
+## Estado actual (2026-08-26)
+
+**✅ Ya construido y funcionando en producción:**
+- Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
+- Dashboard shell (Sidebar, TopBar con búsqueda rápida).
+- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
+- **Documentos** (`/documentos`): listar, subir en un solo paso (`POST /documents/upload`, solo `title` + `file`), polling de estado, descargar cuando está `completed`.
+- **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), resalta coincidencias.
+- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar.
+
+**⏳ Pendiente — prioridad alta:**
+
+1. **Flujo "registrar primero, escanear después" (subir archivo a un documento ya existente)** — `POST /documents/{id}/upload`. Esto es **urgente**: el 26/08/2026 se migraron **289 documentos reales** desde el sistema anterior del archivo físico (títulos, diplomas, resoluciones, etc.), todos en estado `pending` **sin archivo todavía**. El personal del archivo va a necesitar, para cada uno de esos 289 registros: verlo en la lista, y subirle el escaneo cuando lo digitalicen. Hoy el frontend solo soporta "crear documento + archivo en un solo paso" — falta la pantalla/botón para adjuntar un archivo a un documento que ya existe sin uno. Ver sección 3 más abajo para el contrato del endpoint.
+2. **Campos de ubicación física y período archivado en el formulario de subida** — el formulario de `/documentos` solo pide `title`. Los campos `physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, `archived_year`, `archived_month_start`, `archived_month_end` ya existen en el backend (ver sección 3) y los 289 documentos migrados ya los tienen poblados, pero no hay forma de verlos ni editarlos en la UI todavía. `src/lib/types.ts` (`DocumentItem`) tampoco tiene los campos `archived_*` agregados aún.
+3. **Filtro por año archivado** — `GET /documents?archived_year=2023` ya funciona en el backend; falta un selector de año en la UI de `/documentos` (con 289 registros reales ya cargados, sin filtros la lista es larga y poco usable).
+
+**⏳ Pendiente — prioridad media:**
+
+4. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado.
+5. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
+6. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó esta semana) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
+7. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
+
+Ninguno de estos bloquea el uso básico del sistema, pero el punto 1 y 2 son los que más urgen ahora mismo porque hay 289 documentos reales esperando ser digitalizados y catalogados desde la UI.
+
 ## Antes de empezar
 
 Levanta el backend localmente siguiendo la sección "Backend — guía rápida para el equipo de frontend" del [README.md](README.md). Una vez arriba:
@@ -67,6 +92,12 @@ PATCH /auth/users/{id}   { role?, is_active? }     → 200
 ```
 Un `admin` solo ve/gestiona `student`; un `super_admin` ve/gestiona `admin` y `student` (nadie ve otros `super_admin` por API). Desactivar a alguien (`is_active: false`) le bloquea el login inmediatamente (403) y también invalida cualquier sesión que ya tuviera abierta.
 
+**Crear usuario nuevo** (solo `admin`/`super_admin`, no implementado en la UI todavía — ver "Pendiente — prioridad media"):
+```
+POST /auth/users   { email, password, full_name, role }   → 201
+```
+Un `admin` solo puede crear `student`; un `super_admin` puede crear `student` o `admin` (nadie puede crear `super_admin` por API, ni siquiera otro `super_admin`).
+
 ### Sugerencia de manejo de sesión en el frontend
 - Guarda `access_token` y `refresh_token` (ej. en memoria + `refresh_token` en storage seguro).
 - Interceptor HTTP: si una petición devuelve `401`, intenta `/auth/refresh` una vez y reintenta la petición original; si el refresh también falla, redirige a login.
@@ -101,18 +132,24 @@ multipart: file=<archivo>, title="...", doc_type? , folder_id?
 → 202 { document_id, task_id: null, status: "pending" }
 ```
 
-**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa):
+**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa) — **este es el flujo que falta construir en el frontend, ver "Pendiente — prioridad alta" arriba**:
 ```
-1) POST /documents          { title, description?, doc_type?, folder_id?, physical_shelf?, physical_division?, physical_column?, physical_volume? }   → 201, documento sin archivo
+1) POST /documents          { title, description?, doc_type?, folder_id?, physical_shelf?, physical_division?, physical_column?, physical_volume?, archived_year?, archived_month_start?, archived_month_end? }   → 201, documento sin archivo
 2) POST /documents/{id}/upload   multipart: file=<archivo>                    → 202 { document_id, status }
 ```
 Intentar subir un segundo archivo al mismo documento responde `409` (un documento solo tiene un archivo original).
 
-Los campos `physical_*` son opcionales y sirven para catalogar dónde está guardado físicamente el documento (estante/división/columna/tomo) — útil si el staff quiere registrar el inventario antes de escanear cada uno. Se pueden pasar en la creación o agregar después con `PATCH`.
+Ahora mismo hay **289 documentos reales** ya en este estado (creados sin archivo, migrados desde el sistema anterior del archivo físico) — la UI necesita mostrar estos documentos `pending` y ofrecer el botón de "subir escaneo" (paso 2) para cada uno.
+
+Los campos `physical_*` (`physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, todos `string`) son opcionales y catalogan dónde está guardado físicamente el documento (estante/división/columna/tomo).
+
+Los campos `archived_year` (`int`), `archived_month_start`/`archived_month_end` (`int`, 1-12, `month_end` opcional si es un único mes) son opcionales y catalogan **el período que cubre el contenido archivado** — distinto de `created_at`, que es cuándo se subió el registro al sistema. Ej: un tomo con actas de "Enero a Abril 2023" se guarda como `archived_year: 2023, archived_month_start: 1, archived_month_end: 4`.
+
+Todos estos campos (`physical_*` y `archived_*`) se pueden pasar en la creación o agregar/corregir después con `PATCH /documents/{id}`.
 
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
