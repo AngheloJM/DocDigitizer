@@ -132,6 +132,7 @@ async def list_documents(
     status_filter: str | None = None,
     doc_type: str | None = None,
     physical_shelf: str | None = None,
+    archived_year: int | None = None,
     owner_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
@@ -155,6 +156,9 @@ async def list_documents(
     if physical_shelf is not None:
         query = query.where(Document.physical_shelf == physical_shelf)
         count_query = count_query.where(Document.physical_shelf == physical_shelf)
+    if archived_year is not None:
+        query = query.where(Document.archived_year == archived_year)
+        count_query = count_query.where(Document.archived_year == archived_year)
 
     query = query.order_by(Document.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
 
@@ -176,6 +180,9 @@ async def create_document(db: AsyncSession, owner_user_id: uuid.UUID, data: Docu
         physical_division=data.physical_division,
         physical_column=data.physical_column,
         physical_volume=data.physical_volume,
+        archived_year=data.archived_year,
+        archived_month_start=data.archived_month_start,
+        archived_month_end=data.archived_month_end,
         user_id=owner_user_id,
         status="pending",
     )
@@ -217,6 +224,12 @@ async def update_document(db: AsyncSession, document: Document, data: DocumentUp
         document.physical_column = data.physical_column
     if data.physical_volume is not None:
         document.physical_volume = data.physical_volume
+    if data.archived_year is not None:
+        document.archived_year = data.archived_year
+    if data.archived_month_start is not None:
+        document.archived_month_start = data.archived_month_start
+    if data.archived_month_end is not None:
+        document.archived_month_end = data.archived_month_end
 
     await db.commit()
     await db.refresh(document)
