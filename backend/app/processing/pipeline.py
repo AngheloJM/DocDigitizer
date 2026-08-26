@@ -1,4 +1,6 @@
 import io
+import logging
+import time
 
 import cv2
 import numpy as np
@@ -11,6 +13,8 @@ from app.processing.deskew import deskew
 from app.processing.ocr_engine import extract_text
 from app.processing.pdf_generator import generate_pdf_from_image
 from app.processing.perspective import correct_perspective
+
+logger = logging.getLogger(__name__)
 
 MAX_DIMENSION_PX = 3000
 PDF_RENDER_DPI = 300
@@ -46,17 +50,24 @@ def _normalize(file_bytes: bytes, file_format: str) -> tuple[np.ndarray, int]:
     return image, pages_in_source
 
 
+def _step(name: str, fn, *args):
+    start = time.monotonic()
+    result = fn(*args)
+    logger.info("pipeline step=%s took=%.2fs", name, time.monotonic() - start)
+    return result
+
+
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     image, pages_in_source = _normalize(file_bytes, file_format)
 
     perspective_config = {"enabled": file_format != "pdf"}
-    image, perspective_meta = correct_perspective(image, perspective_config)
-    image, denoise_meta = denoise(image)
-    image, binarize_meta = binarize(image)
-    image, deskew_meta = deskew(image)
+    image, perspective_meta = _step("perspective", correct_perspective, image, perspective_config)
+    image, denoise_meta = _step("denoise", denoise, image)
+    image, binarize_meta = _step("binarize", binarize, image)
+    image, deskew_meta = _step("deskew", deskew, image)
 
-    ocr_result = extract_text(image)
-    pdf_bytes = generate_pdf_from_image(image)
+    ocr_result = _step("ocr", extract_text, image)
+    pdf_bytes = _step("pdf_generate", generate_pdf_from_image, image)
 
     return {
         "processed_image": image,

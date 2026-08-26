@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -14,6 +15,7 @@ from app.storage.minio_client import download_bytes, upload_bytes
 from app.worker.celery_app import celery_app
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="app.worker.tasks.ping")
@@ -39,10 +41,14 @@ async def _process_document(document_id: uuid.UUID) -> None:
             if original_image is None:
                 raise RuntimeError("El documento no tiene un archivo original asociado")
 
+            logger.info("document=%s downloading original", document_id)
             image_bytes = download_bytes(settings.minio_bucket_originals, original_image.minio_path)
+
+            logger.info("document=%s running pipeline", document_id)
             result = process_image_bytes(image_bytes, original_image.file_format)
 
             pdf_path = f"processed/{document.user_id}/{document.id}.pdf"
+            logger.info("document=%s uploading processed pdf", document_id)
             upload_bytes(
                 settings.minio_bucket_processed, pdf_path, result["pdf_bytes"], "application/pdf"
             )
