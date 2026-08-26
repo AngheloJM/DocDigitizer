@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.auth.models import User
 from app.database import SessionLocal, engine
 from app.documents.models import Document
+from app.folders import models as folders_models  # noqa: F401
 
 FIREBASE_URL = "https://organizador-3f2cd-default-rtdb.firebaseio.com/.json"
 
