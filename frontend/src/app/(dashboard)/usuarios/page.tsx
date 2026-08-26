@@ -44,7 +44,7 @@ export default function UsuariosPage() {
 
   if (user && !isStaff(user.role)) {
     return (
-      <div className="bg-error-container text-error text-sm rounded-lg px-3 py-2">
+      <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2">
         No tienes permiso para ver la administración de usuarios.
       </div>
     );
@@ -59,9 +59,9 @@ export default function UsuariosPage() {
         </p>
       </div>
 
-      {error && <div className="bg-error-container text-error text-sm rounded-lg px-3 py-2 mb-4">{error}</div>}
+      {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white rounded-2xl border border-outline-variant">
         {loading ? (
           <div className="py-8 text-center text-sm text-on-surface-variant">Cargando usuarios...</div>
         ) : items.length === 0 ? (
@@ -70,7 +70,7 @@ export default function UsuariosPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-gray-200 text-[11px] text-on-surface-variant uppercase tracking-wider bg-gray-50/50">
+                <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
                   <th className="py-3 px-4 font-medium">Nombre</th>
                   <th className="py-3 px-4 font-medium">Email</th>
                   <th className="py-3 px-4 font-medium">Rol</th>
@@ -80,7 +80,7 @@ export default function UsuariosPage() {
               </thead>
               <tbody className="text-sm">
                 {items.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                  <tr key={item.id} className="border-b border-outline-variant hover:bg-surface-container">
                     <td className="py-3 px-4 font-medium">{item.full_name}</td>
                     <td className="py-3 px-4 text-on-surface-variant">{item.email}</td>
                     <td className="py-3 px-4">{ROLE_LABEL[item.role as Role] ?? item.role}</td>
@@ -94,7 +94,7 @@ export default function UsuariosPage() {
                       <button
                         type="button"
                         onClick={() => void toggleActive(item)}
-                        className="border border-gray-200 text-xs font-medium py-1.5 px-3 rounded-md hover:bg-gray-50"
+                        className="border border-outline-variant text-xs font-medium py-1.5 px-3 rounded-2xl hover:bg-surface-container"
                       >
                         {item.is_active ? "Desactivar" : "Reactivar"}
                       </button>

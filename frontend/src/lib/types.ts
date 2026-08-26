@@ -78,7 +78,7 @@ export type SearchResult = {
 export const ROLE_LABEL: Record<Role, string> = {
   student: "Estudiante",
   admin: "Administrador",
-  super_admin: "Super Admin",
+  super_admin: "Super administrador",
 };
 
 export const STATUS_LABEL: Record<string, string> = {

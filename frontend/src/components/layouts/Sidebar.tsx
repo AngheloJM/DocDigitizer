@@ -6,7 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useUi } from "@/components/providers/UiProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { initials, isStaff, ROLE_LABEL } from "@/lib/types";
+import { isStaff } from "@/lib/types";
 
 const navItems = [
   { href: "/carpetas", icon: "inventory_2", label: "Carpetas" },
@@ -16,7 +16,7 @@ const navItems = [
 
 export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
   const { sidebarCollapsed } = useUi();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const pathname = usePathname();
   const collapsed = isDesktop && sidebarCollapsed;
@@ -34,22 +34,24 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
 
       <nav
         className={`
-          fixed left-0 top-0 h-full border-r border-gray-200 bg-white z-40
+          fixed left-0 top-0 h-full border-r border-outline-variant bg-white z-40
           flex flex-col py-6 transition-all duration-300 ease-in-out
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
         `}
         style={{ width: isDesktop ? (collapsed ? 72 : 260) : 260 }}
       >
-        <div className={`px-4 mb-8 flex items-center ${collapsed ? "justify-center" : "gap-3"}`}>
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-white shrink-0">
-            <Icon name="school" className="text-lg" />
-          </div>
-          {showLabels && (
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold text-on-surface tracking-tight leading-none">DocDigitizer</h1>
-              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Gestión Documental</p>
-            </div>
-          )}
+        <div
+          className={`mb-6 bg-primary border-b-4 border-secondary ${
+            collapsed
+              ? "mx-2 rounded-2xl px-1 py-3 flex justify-center"
+              : "mx-3 rounded-2xl px-3 py-5 flex flex-col items-center"
+          }`}
+        >
+          <img
+            src="/logo-utepsa.png?v=3"
+            alt="UTEPSA"
+            className={collapsed ? "h-8 w-auto max-w-full object-contain" : "h-12 w-auto max-w-full object-contain"}
+          />
         </div>
 
         <div className={`mb-6 ${collapsed ? "px-3" : "px-4"}`}>
@@ -57,7 +59,7 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
             href="/documentos?upload=1"
             onClick={onClose}
             title="Subir Documento"
-            className="w-full bg-primary text-white text-sm font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-primary-light transition-colors"
+            className="w-full bg-primary text-white text-sm font-medium py-2.5 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors"
           >
             <Icon name="upload" className="text-lg shrink-0" />
             {showLabels && <span>Subir Documento</span>}
@@ -74,16 +76,24 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
                     href={item.href}
                     onClick={onClose}
                     title={item.label}
-                    className={`flex items-center gap-3 py-2.5 text-sm rounded-lg transition-all duration-150 ${
+                    className={`flex items-center gap-3 py-2.5 text-sm rounded-2xl transition-all duration-150 ${
                       collapsed ? "justify-center px-2" : "px-3"
                     } ${
                       isActive
                         ? "bg-primary/5 text-primary font-medium"
-                        : "text-on-surface-variant hover:bg-gray-50 hover:text-on-surface"
+                        : "text-on-surface-variant hover:bg-surface-container hover:text-on-surface"
                     }`}
                   >
-                    <Icon name={item.icon} className="text-xl shrink-0" />
-                    {showLabels && <span className="truncate">{item.label}</span>}
+                    <Icon
+                      name={item.icon}
+                      className={`text-xl shrink-0 ${isActive ? "text-primary" : ""}`}
+                    />
+                    {showLabels && (
+                      <span className="truncate flex-1">{item.label}</span>
+                    )}
+                    {showLabels && isActive && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-secondary shrink-0" />
+                    )}
                   </Link>
                 </li>
               );
@@ -91,41 +101,19 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
           </ul>
         </div>
 
-        <div className="mt-auto border-t border-gray-200 pt-3 px-2">
-          <div
-            className={`mb-1 rounded-lg ${collapsed ? "px-1 py-2 flex justify-center" : "px-3 py-2.5"}`}
-            title={user ? `${user.full_name} · ${ROLE_LABEL[user.role]}` : "Cargando usuario"}
-          >
-            <div className={`flex items-center ${collapsed ? "" : "gap-3"}`}>
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
-                {user ? initials(user.full_name) : "—"}
-              </div>
-              {showLabels && (
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-on-surface truncate">
-                    {user?.full_name ?? "Cargando..."}
-                  </p>
-                  <p className="text-xs text-on-surface-variant truncate">
-                    {user ? ROLE_LABEL[user.role] : "Sesión"}
-                  </p>
-                </div>
-              )}
+        <div className="mt-auto border-t border-outline-variant pt-3 px-3 pb-1">
+          {showLabels ? (
+            <div className="px-1 py-2 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-primary">UTEPSA</p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                Archivo central · {new Date().getFullYear()}
+              </p>
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              void logout();
-            }}
-            title="Cerrar Sesión"
-            className={`flex items-center gap-3 py-2.5 text-sm text-on-surface-variant hover:bg-red-50 hover:text-red-600 transition-colors rounded-lg w-full ${
-              collapsed ? "justify-center px-2" : "px-3"
-            }`}
-          >
-            <Icon name="logout" className="text-xl shrink-0" />
-            {showLabels && <span>Cerrar Sesión</span>}
-          </button>
+          ) : (
+            <div className="flex justify-center py-2" title={`UTEPSA ${new Date().getFullYear()}`}>
+              <span className="w-2 h-2 rounded-full bg-secondary" />
+            </div>
+          )}
         </div>
       </nav>
     </>

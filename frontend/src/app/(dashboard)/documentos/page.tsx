@@ -85,14 +85,14 @@ function DocumentosContent() {
         <button
           type="button"
           onClick={() => setUploading((value) => !value)}
-          className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-lg flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+          className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
         >
           <Icon name="upload" className="text-lg" /> Subir documento
         </button>
       </div>
 
       {uploading && (
-        <form onSubmit={onUpload} className="bg-white rounded-xl p-5 border border-gray-200 mb-6 space-y-4">
+        <form onSubmit={onUpload} className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 space-y-4">
           <h3 className="text-sm font-semibold text-on-surface">Carga en un paso</h3>
           <p className="text-xs text-on-surface-variant">
             Si el PDF tiene varias páginas, solo se procesa la primera. El resto no se digitaliza todavía.
@@ -103,7 +103,7 @@ function DocumentosContent() {
               required
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-gray-200 rounded-lg bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
           <div>
@@ -117,20 +117,20 @@ function DocumentosContent() {
             />
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-primary-light">
+            <button type="submit" className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-2xl hover:bg-primary-light">
               Subir
             </button>
-            <button type="button" onClick={() => setUploading(false)} className="border border-gray-200 text-sm py-2 px-4 rounded-lg">
+            <button type="button" onClick={() => setUploading(false)} className="border border-outline-variant text-sm py-2 px-4 rounded-2xl">
               Cancelar
             </button>
           </div>
         </form>
       )}
 
-      {error && <div className="bg-error-container text-error text-sm rounded-lg px-3 py-2 mb-4">{error}</div>}
+      {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 border-b border-gray-200">
+      <div className="bg-white rounded-2xl border border-outline-variant">
+        <div className="p-4 border-b border-outline-variant">
           <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
         </div>
         {loading ? (
@@ -141,7 +141,7 @@ function DocumentosContent() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-gray-200 text-[11px] text-on-surface-variant uppercase tracking-wider bg-gray-50/50">
+                <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
                   <th className="py-3 px-4 font-medium">Título</th>
                   <th className="py-3 px-4 font-medium">Estado</th>
                   <th className="py-3 px-4 text-right font-medium" />
@@ -149,7 +149,7 @@ function DocumentosContent() {
               </thead>
               <tbody className="text-sm">
                 {items.map((doc) => (
-                  <tr key={doc.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <tr key={doc.id} className="border-b border-outline-variant hover:bg-surface-container transition-colors">
                     <td className="py-3 px-4 font-medium">{doc.title}</td>
                     <td className="py-3 px-4">
                       <StatusBadge status={doc.status} />
@@ -158,7 +158,7 @@ function DocumentosContent() {
                       {doc.status === "completed" ? (
                         <a
                           href={backend.documents.downloadUrl(doc.id)}
-                          className="text-on-surface-variant hover:text-primary p-1.5 rounded-md hover:bg-primary/5 inline-flex"
+                          className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
                           title="Descargar"
                         >
                           <Icon name="download" className="text-lg" />

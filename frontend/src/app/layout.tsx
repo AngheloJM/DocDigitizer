@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DocDigitizer — Gestión Documental",
+  title: "Archivo Central UTEPSA — Inicio de sesión",
   description: "Sistema de gestión, digitalización y organización automatizada de documentos.",
 };
 
