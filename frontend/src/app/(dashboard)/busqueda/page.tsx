@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import type { SearchResult } from "@/lib/types";
+import { formatArchivedPeriod, formatPhysicalLocation } from "@/lib/types";
 
 function BusquedaContent() {
   const params = useSearchParams();
@@ -79,7 +80,14 @@ function BusquedaContent() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-medium text-on-surface">{item.document.title}</p>
-                <p className="text-xs text-on-surface-variant mt-1">{item.document.doc_type || "Documento"}</p>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  {[item.document.doc_type || "Documento", formatArchivedPeriod(item.document)]
+                    .filter((part) => part && part !== "—")
+                    .join(" · ")}
+                </p>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  {formatPhysicalLocation(item.document)}
+                </p>
               </div>
               <StatusBadge status={item.document.status} />
             </div>

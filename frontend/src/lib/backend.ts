@@ -1,6 +1,15 @@
 import { api } from "@/lib/api";
 import type { DocumentItem, Folder, Paginated, SearchResult, User } from "@/lib/types";
 
+export type DocumentListFilters = {
+  page?: number;
+  perPage?: number;
+  folderId?: string | null;
+  statusFilter?: string | null;
+  physicalShelf?: string | null;
+  archivedYear?: number | null;
+};
+
 export const backend = {
   auth: {
     me: () => api<User>("/auth/me"),
@@ -17,13 +26,24 @@ export const backend = {
     remove: (id: string) => api<void>(`/folders/${id}`, { method: "DELETE" }),
   },
   documents: {
-    list: (page = 1, perPage = 20, folderId?: string | null) => {
-      const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
-      if (folderId) params.set("folder_id", folderId);
+    list: (filters: DocumentListFilters = {}) => {
+      const params = new URLSearchParams({
+        page: String(filters.page ?? 1),
+        per_page: String(filters.perPage ?? 50),
+      });
+      if (filters.folderId) params.set("folder_id", filters.folderId);
+      if (filters.statusFilter) params.set("status_filter", filters.statusFilter);
+      if (filters.physicalShelf) params.set("physical_shelf", filters.physicalShelf);
+      if (filters.archivedYear != null) params.set("archived_year", String(filters.archivedYear));
       return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
     },
     upload: (form: FormData) =>
       api<{ document_id: string; task_id: string | null; status: string }>("/documents/upload", {
+        method: "POST",
+        body: form,
+      }),
+    uploadToExisting: (id: string, form: FormData) =>
+      api<{ document_id: string; task_id: string | null; status: string }>(`/documents/${id}/upload`, {
         method: "POST",
         body: form,
       }),

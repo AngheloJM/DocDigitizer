@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import type { DocumentItem, Folder } from "@/lib/types";
+import { formatArchivedPeriod, formatPhysicalLocation, needsScanUpload } from "@/lib/types";
 
 function CarpetasContent() {
   const params = useSearchParams();
@@ -29,7 +30,7 @@ function CarpetasContent() {
       const data = await backend.folders.list(parentId);
       setFolders(data);
       if (parentId) {
-        const docs = await backend.documents.list(1, 20, parentId);
+        const docs = await backend.documents.list({ page: 1, perPage: 50, folderId: parentId });
         setDocuments(docs.items);
       } else {
         setDocuments([]);
@@ -245,16 +246,30 @@ function CarpetasContent() {
             </div>
             <ul className="divide-y divide-outline-variant">
               {documents.map((doc) => (
-                <li key={doc.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div>
+                <li key={doc.id} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-on-surface">{doc.title}</p>
-                    <StatusBadge status={doc.status} />
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-on-surface-variant">
+                      <StatusBadge status={doc.status} />
+                      <span>Período: {formatArchivedPeriod(doc)}</span>
+                      <span>{formatPhysicalLocation(doc)}</span>
+                    </div>
                   </div>
-                  {doc.status === "completed" && (
-                    <a href={backend.documents.downloadUrl(doc.id)} className="text-primary text-sm">
-                      Descargar
-                    </a>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {needsScanUpload(doc.status) && (
+                      <a
+                        href="/documentos"
+                        className="text-primary text-xs font-medium hover:underline"
+                      >
+                        Subir escaneo
+                      </a>
+                    )}
+                    {doc.status === "completed" && (
+                      <a href={backend.documents.downloadUrl(doc.id)} className="text-primary text-sm">
+                        Descargar
+                      </a>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
