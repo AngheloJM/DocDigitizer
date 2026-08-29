@@ -33,10 +33,15 @@ def test_process_image_bytes_runs_full_pipeline():
     assert result["pdf_bytes"].startswith(b"%PDF")
     assert result["pipeline_metadata"]["source_format"] == "png"
     assert result["pipeline_metadata"]["pages_in_source"] == 1
+    assert result["pipeline_metadata"]["pages_processed"] == 1
     assert set(result["pipeline_metadata"].keys()) == {
         "source_format",
         "pages_in_source",
         "pages_processed",
+        "pages",
+    }
+    assert len(result["pipeline_metadata"]["pages"]) == 1
+    assert set(result["pipeline_metadata"]["pages"][0].keys()) == {
         "perspective",
         "denoise",
         "binarize",
@@ -68,11 +73,14 @@ def test_process_image_bytes_accepts_pdf_input():
     assert result["pipeline_metadata"]["pages_in_source"] == 1
 
 
-def test_process_image_bytes_processes_only_first_page_of_multipage_pdf():
+def test_process_image_bytes_processes_all_pages_of_multipage_pdf():
     pdf_bytes = _make_pdf_bytes(["Pagina Uno", "Pagina Dos", "Pagina Tres"])
 
     result = process_image_bytes(pdf_bytes, file_format="pdf")
 
     assert "Uno" in result["ocr_result"]["raw_text"]
+    assert "Dos" in result["ocr_result"]["raw_text"]
+    assert "Tres" in result["ocr_result"]["raw_text"]
     assert result["pipeline_metadata"]["pages_in_source"] == 3
-    assert result["pipeline_metadata"]["pages_processed"] == 1
+    assert result["pipeline_metadata"]["pages_processed"] == 3
+    assert len(result["pipeline_metadata"]["pages"]) == 3

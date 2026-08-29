@@ -120,7 +120,9 @@ Ya funciona el flujo completo: subir el archivo, procesarlo (OCR + restauración
 
 Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB.
 
-⚠️ Si el archivo es un PDF de varias páginas, solo se procesa la **primera página** — avisa al usuario si va a subir un PDF multi-página (por ejemplo con un mensaje en la UI), porque el resto del contenido no se digitaliza.
+✅ Si el archivo es un PDF de varias páginas, se procesan **todas** — el PDF/A generado y el texto extraído cubren el documento completo, no solo la primera página.
+
+> ⚠️ Para el equipo de frontend: `documentos/page.tsx:213` todavía dice "Si el PDF tiene varias páginas, solo se procesa la primera." — ese mensaje ya quedó desactualizado (26/08/2026) y debería quitarse o corregirse.
 
 Hay **tres formas** de crear/completar un documento, según el flujo de tu UI:
 
@@ -176,7 +178,6 @@ Nota para correr esto localmente: además de `docker compose up -d`, ahora tambi
 Pendientes conocidos del backend (no bloquean el desarrollo del frontend, pero ten presente que no existen todavía):
 - Revocación explícita de refresh tokens en logout (hoy expiran solos a los 7 días, no hay invalidación anticipada del lado del servidor más allá de la rotación de un solo uso).
 - Rate limiting solo existe en `/auth/login`; el resto de endpoints no lo tiene.
-- Soporte real para PDFs de varias páginas (solo se procesa la primera página, ver nota en la sección 3).
 
 ## 6. Errores comunes a manejar en el frontend
 
