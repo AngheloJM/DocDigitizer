@@ -137,12 +137,17 @@ async def list_documents(
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[Document], int]:
-    target_user_id = requesting_user.id
-    if is_staff(requesting_user) and owner_id is not None:
-        target_user_id = owner_id
+    query = select(Document)
+    count_query = select(func.count()).select_from(Document)
 
-    query = select(Document).where(Document.user_id == target_user_id)
-    count_query = select(func.count()).select_from(Document).where(Document.user_id == target_user_id)
+    if is_staff(requesting_user):
+        if owner_id is not None:
+            query = query.where(Document.user_id == owner_id)
+            count_query = count_query.where(Document.user_id == owner_id)
+        # sin owner_id, el staff ve documentos de todos los usuarios (archivo institucional)
+    else:
+        query = query.where(Document.user_id == requesting_user.id)
+        count_query = count_query.where(Document.user_id == requesting_user.id)
 
     if folder_id is not None:
         query = query.where(Document.folder_id == folder_id)
@@ -335,18 +340,21 @@ async def search_documents(
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[tuple[Document, str, float]], int]:
-    target_user_id = requesting_user.id
-    if is_staff(requesting_user) and owner_id is not None:
-        target_user_id = owner_id
-
     tsquery = func.plainto_tsquery("spanish", q)
     matches = ExtractedText.tsv_content.op("@@")(tsquery)
 
     base_query = (
         select(Document, ExtractedText)
         .join(ExtractedText, ExtractedText.document_id == Document.id)
-        .where(Document.user_id == target_user_id, matches)
+        .where(matches)
     )
+
+    if is_staff(requesting_user):
+        if owner_id is not None:
+            base_query = base_query.where(Document.user_id == owner_id)
+        # sin owner_id, el staff busca entre documentos de todos los usuarios
+    else:
+        base_query = base_query.where(Document.user_id == requesting_user.id)
 
     if doc_type is not None:
         base_query = base_query.where(Document.doc_type == doc_type)

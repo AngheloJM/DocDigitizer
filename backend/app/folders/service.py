@@ -33,13 +33,16 @@ async def list_folders(
     parent_id: uuid.UUID | None,
     owner_id: uuid.UUID | None = None,
 ) -> list[Folder]:
-    target_user_id = requesting_user.id
-    if is_staff(requesting_user) and owner_id is not None:
-        target_user_id = owner_id
+    query = select(Folder).where(Folder.parent_id == parent_id)
 
-    result = await db.execute(
-        select(Folder).where(Folder.user_id == target_user_id, Folder.parent_id == parent_id)
-    )
+    if is_staff(requesting_user):
+        if owner_id is not None:
+            query = query.where(Folder.user_id == owner_id)
+        # sin owner_id, el staff ve carpetas de todos los usuarios (archivo institucional)
+    else:
+        query = query.where(Folder.user_id == requesting_user.id)
+
+    result = await db.execute(query)
     return list(result.scalars().all())
 
 
