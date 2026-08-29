@@ -5,10 +5,25 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import pymupdf
 
 
 class PdfGenerationError(Exception):
     pass
+
+
+def merge_pdf_pages(pdf_pages: list[bytes]) -> bytes:
+    if len(pdf_pages) == 1:
+        return pdf_pages[0]
+
+    merged = pymupdf.open()
+    try:
+        for page_bytes in pdf_pages:
+            with pymupdf.open(stream=page_bytes, filetype="pdf") as page_doc:
+                merged.insert_pdf(page_doc)
+        return merged.tobytes()
+    finally:
+        merged.close()
 
 
 def generate_pdf_from_image(image: np.ndarray, dpi: int = 300) -> bytes:
