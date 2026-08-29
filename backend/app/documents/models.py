@@ -46,6 +46,9 @@ class Document(Base):
     folder_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("folders.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    assigned_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     physical_shelf: Mapped[str | None] = mapped_column(String(50), nullable=True)
     physical_division: Mapped[str | None] = mapped_column(String(50), nullable=True)

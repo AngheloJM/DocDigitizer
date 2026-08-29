@@ -9,6 +9,7 @@ from app.database import SessionLocal
 from app.documents.models import AuditLog
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.documents.service import (
+    InvalidAssigneeError,
     InvalidFolderError,
     create_document,
     get_document,
@@ -217,6 +218,84 @@ async def test_update_document_title(db_session, test_user):
     assert updated.title == "Actualizado"
 
     await db_session.delete(document)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_staff_can_assign_document_to_another_user(db_session, test_user):
+    admin = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Admin de Test",
+        role="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    document = await create_document(db_session, admin.id, DocumentCreate(title="Acta"), True)
+    updated = await update_document(
+        db_session, document, DocumentUpdate(assigned_to_id=test_user.id), True
+    )
+
+    assert updated.assigned_to_id == test_user.id
+
+    await db_session.delete(document)
+    await db_session.delete(admin)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_non_staff_cannot_assign_document(db_session, test_user):
+    document = await create_document(db_session, test_user.id, DocumentCreate(title="Acta"))
+
+    with pytest.raises(InvalidAssigneeError):
+        await update_document(
+            db_session, document, DocumentUpdate(assigned_to_id=test_user.id), False
+        )
+
+    await db_session.delete(document)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_assigning_to_nonexistent_user_raises(db_session, test_user):
+    document = await create_document(db_session, test_user.id, DocumentCreate(title="Acta"))
+
+    with pytest.raises(InvalidAssigneeError):
+        await update_document(
+            db_session, document, DocumentUpdate(assigned_to_id=uuid.uuid4()), True
+        )
+
+    await db_session.delete(document)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_assigned_user_can_access_document_without_owning_it(db_session, test_user):
+    admin = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Admin de Test",
+        role="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    document = await create_document(db_session, admin.id, DocumentCreate(title="Acta"), True)
+    await update_document(db_session, document, DocumentUpdate(assigned_to_id=test_user.id), True)
+
+    found = await get_document(db_session, document.id, test_user)
+    assert found is not None
+    assert found.id == document.id
+
+    items, total = await list_documents(db_session, test_user)
+    ids = {item.id for item in items}
+    assert document.id in ids
+
+    await db_session.delete(document)
+    await db_session.delete(admin)
     await db_session.commit()
 
 

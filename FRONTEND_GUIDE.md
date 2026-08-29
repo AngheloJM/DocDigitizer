@@ -2,30 +2,31 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-## Estado actual (2026-08-26)
+## Estado actual (2026-08-29)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
 - **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
-- **Documentos** (`/documentos`): listar, subir en un solo paso (`POST /documents/upload`, solo `title` + `file`), polling de estado, descargar cuando está `completed`.
-- **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), resalta coincidencias.
+- **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado), columnas de período/ubicación física, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
 - **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar.
+- Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio) — ver sección 3.
+- Campo `assigned_to_id` en documentos (staff puede asignar un documento a otro usuario sin cambiar el dueño) — ver sección 3.
 
 **⏳ Pendiente — prioridad alta:**
 
-1. **Flujo "registrar primero, escanear después" (subir archivo a un documento ya existente)** — `POST /documents/{id}/upload`. Esto es **urgente**: el 26/08/2026 se migraron **289 documentos reales** desde el sistema anterior del archivo físico (títulos, diplomas, resoluciones, etc.), todos en estado `pending` **sin archivo todavía**. El personal del archivo va a necesitar, para cada uno de esos 289 registros: verlo en la lista, y subirle el escaneo cuando lo digitalicen. Hoy el frontend solo soporta "crear documento + archivo en un solo paso" — falta la pantalla/botón para adjuntar un archivo a un documento que ya existe sin uno. Ver sección 3 más abajo para el contrato del endpoint.
-2. **Campos de ubicación física y período archivado en el formulario de subida** — el formulario de `/documentos` solo pide `title`. Los campos `physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, `archived_year`, `archived_month_start`, `archived_month_end` ya existen en el backend (ver sección 3) y los 289 documentos migrados ya los tienen poblados, pero no hay forma de verlos ni editarlos en la UI todavía. `src/lib/types.ts` (`DocumentItem`) tampoco tiene los campos `archived_*` agregados aún.
-3. **Filtro por año archivado** — `GET /documents?archived_year=2023` ya funciona en el backend; falta un selector de año en la UI de `/documentos` (con 289 registros reales ya cargados, sin filtros la lista es larga y poco usable).
+1. **UI para asignar documentos a un usuario** — el backend ya soporta `assigned_to_id` (`PATCH /documents/{id}`, solo staff), pero no hay ningún selector en `/documentos` para elegir a quién asignarle un documento. Caso de uso real: un admin reparte los 289 documentos migrados entre varios usuarios para que cada uno digitalice/revise los suyos.
+2. **Indicador de "asignado a mí"** — un usuario no-staff que tiene documentos asignados (no propios) hoy los va a ver mezclados en `/documentos` sin distinguir cuáles son suyos y cuáles le asignaron; falta una columna o filtro visual para eso.
 
 **⏳ Pendiente — prioridad media:**
 
-4. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado.
-5. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
-6. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó esta semana) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
-7. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
+3. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado.
+4. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
+5. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó esta semana) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
+6. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
 
-Ninguno de estos bloquea el uso básico del sistema, pero el punto 1 y 2 son los que más urgen ahora mismo porque hay 289 documentos reales esperando ser digitalizados y catalogados desde la UI.
+Ninguno de estos bloquea el uso básico del sistema.
 
 ## Antes de empezar
 
@@ -151,16 +152,23 @@ Todos estos campos (`physical_*` y `archived_*`) se pueden pasar en la creación
 
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
 POST   /documents/{id}/reprocess                                        → 202 { document_id, task_id, status: "reprocessing" }
-PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id? }  → 200
+PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id?, assigned_to_id? }  → 200
 DELETE /documents/{id}                                                  → 204 (borra tambien el archivo de MinIO)
 ```
 
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
+
+**Visibilidad y asignación (nuevo, 29/08/2026):**
+- `admin`/`super_admin` ven documentos y carpetas de **todos** los usuarios por defecto en `GET /documents` y `GET /folders` (antes solo veían lo propio salvo que pasaran `?owner_id=`). `?owner_id=<id>` sigue funcionando para acotar a un usuario puntual.
+- Nuevo campo `assigned_to_id` (UUID, opcional) en `documents`, independiente de `user_id` (el dueño real). Sirve para que un admin le asigne un documento a otro usuario (staff o `student`) sin transferirle la propiedad — por ejemplo, repartir los 289 documentos migrados entre varias personas para que cada una digitalice/revise los suyos.
+- Solo `admin`/`super_admin` pueden poner o cambiar `assigned_to_id` (via `POST /documents` o `PATCH /documents/{id}`) — un `student` que lo intente recibe `400`. Asignar a un usuario que no existe también responde `400`.
+- El usuario asignado (aunque no sea `student` propietario) puede ver ese documento en `GET /documents`, `GET /documents/{id}`, subirle el archivo, descargarlo, etc. — mismo acceso que si fuera el dueño, aunque `user_id` no cambia.
+- Filtrar por asignado: `GET /documents?assigned_to_id=<user_id>`.
 
 ## 4. Búsqueda
 
