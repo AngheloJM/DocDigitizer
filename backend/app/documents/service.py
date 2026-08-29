@@ -3,7 +3,7 @@ import io
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -115,12 +115,33 @@ async def _folder_belongs_to(db: AsyncSession, folder_id: uuid.UUID, owner_user_
     return result.scalar_one_or_none() is not None
 
 
+class InvalidAssigneeError(Exception):
+    pass
+
+
+async def _validate_assignee(db: AsyncSession, requester_is_staff: bool, assigned_to_id: uuid.UUID) -> None:
+    if not requester_is_staff:
+        raise InvalidAssigneeError("Solo el staff (admin/super_admin) puede asignar documentos")
+    exists = (await db.execute(select(User.id).where(User.id == assigned_to_id))).scalar_one_or_none()
+    if exists is None:
+        raise InvalidAssigneeError("El usuario asignado no existe")
+
+
+def _owned_or_assigned(requesting_user: User):
+    return or_(
+        Document.user_id == requesting_user.id,
+        Document.assigned_to_id == requesting_user.id,
+    )
+
+
 async def get_document(db: AsyncSession, document_id: uuid.UUID, requesting_user: User) -> Document | None:
     if is_staff(requesting_user):
         result = await db.execute(select(Document).where(Document.id == document_id))
     else:
         result = await db.execute(
-            select(Document).where(Document.id == document_id, Document.user_id == requesting_user.id)
+            select(Document).where(
+                Document.id == document_id, _owned_or_assigned(requesting_user)
+            )
         )
     return result.scalar_one_or_none()
 
@@ -134,6 +155,7 @@ async def list_documents(
     physical_shelf: str | None = None,
     archived_year: int | None = None,
     owner_id: uuid.UUID | None = None,
+    assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
 ) -> tuple[list[Document], int]:
@@ -146,9 +168,12 @@ async def list_documents(
             count_query = count_query.where(Document.user_id == owner_id)
         # sin owner_id, el staff ve documentos de todos los usuarios (archivo institucional)
     else:
-        query = query.where(Document.user_id == requesting_user.id)
-        count_query = count_query.where(Document.user_id == requesting_user.id)
+        query = query.where(_owned_or_assigned(requesting_user))
+        count_query = count_query.where(_owned_or_assigned(requesting_user))
 
+    if assigned_to_id is not None:
+        query = query.where(Document.assigned_to_id == assigned_to_id)
+        count_query = count_query.where(Document.assigned_to_id == assigned_to_id)
     if folder_id is not None:
         query = query.where(Document.folder_id == folder_id)
         count_query = count_query.where(Document.folder_id == folder_id)
@@ -172,9 +197,16 @@ async def list_documents(
     return items, total
 
 
-async def create_document(db: AsyncSession, owner_user_id: uuid.UUID, data: DocumentCreate) -> Document:
+async def create_document(
+    db: AsyncSession,
+    owner_user_id: uuid.UUID,
+    data: DocumentCreate,
+    requester_is_staff: bool = False,
+) -> Document:
     if data.folder_id is not None and not await _folder_belongs_to(db, data.folder_id, owner_user_id):
         raise InvalidFolderError("La carpeta no existe o no te pertenece")
+    if data.assigned_to_id is not None:
+        await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
 
     document = Document(
         title=data.title,
@@ -188,6 +220,7 @@ async def create_document(db: AsyncSession, owner_user_id: uuid.UUID, data: Docu
         archived_year=data.archived_year,
         archived_month_start=data.archived_month_start,
         archived_month_end=data.archived_month_end,
+        assigned_to_id=data.assigned_to_id,
         user_id=owner_user_id,
         status="pending",
     )
@@ -203,15 +236,24 @@ async def create_document_with_file(
     data: DocumentCreate,
     file_bytes: bytes,
     filename: str | None,
+    requester_is_staff: bool = False,
 ) -> Document:
-    document = await create_document(db, owner_user_id, data)
+    document = await create_document(db, owner_user_id, data, requester_is_staff)
     await attach_file_to_document(db, document, file_bytes, filename)
     return document
 
 
-async def update_document(db: AsyncSession, document: Document, data: DocumentUpdate) -> Document:
+async def update_document(
+    db: AsyncSession,
+    document: Document,
+    data: DocumentUpdate,
+    requester_is_staff: bool = False,
+) -> Document:
     if data.folder_id is not None and not await _folder_belongs_to(db, data.folder_id, document.user_id):
         raise InvalidFolderError("La carpeta no existe o no pertenece al mismo propietario")
+    if data.assigned_to_id is not None:
+        await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
+        document.assigned_to_id = data.assigned_to_id
 
     if data.title is not None:
         document.title = data.title
@@ -354,7 +396,7 @@ async def search_documents(
             base_query = base_query.where(Document.user_id == owner_id)
         # sin owner_id, el staff busca entre documentos de todos los usuarios
     else:
-        base_query = base_query.where(Document.user_id == requesting_user.id)
+        base_query = base_query.where(_owned_or_assigned(requesting_user))
 
     if doc_type is not None:
         base_query = base_query.where(Document.doc_type == doc_type)

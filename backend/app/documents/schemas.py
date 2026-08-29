@@ -16,6 +16,7 @@ class DocumentCreate(BaseModel):
     archived_year: int | None = None
     archived_month_start: int | None = Field(default=None, ge=1, le=12)
     archived_month_end: int | None = Field(default=None, ge=1, le=12)
+    assigned_to_id: uuid.UUID | None = None
 
 
 class DocumentUpdate(BaseModel):
@@ -30,6 +31,7 @@ class DocumentUpdate(BaseModel):
     archived_year: int | None = None
     archived_month_start: int | None = Field(default=None, ge=1, le=12)
     archived_month_end: int | None = Field(default=None, ge=1, le=12)
+    assigned_to_id: uuid.UUID | None = None
 
 
 class DocumentResponse(BaseModel):
@@ -41,6 +43,7 @@ class DocumentResponse(BaseModel):
     doc_type: str | None
     status: str
     user_id: uuid.UUID
+    assigned_to_id: uuid.UUID | None
     folder_id: uuid.UUID | None
     physical_shelf: str | None
     physical_division: str | None

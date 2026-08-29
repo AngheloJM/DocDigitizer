@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
 
+from app.auth.permissions import is_staff
 from app.dependencies import CurrentUser, DbSession
 from app.documents import service
 from app.documents.schemas import (
@@ -16,6 +17,7 @@ from app.documents.schemas import (
 )
 from app.documents.service import (
     DocumentAlreadyHasFileError,
+    InvalidAssigneeError,
     InvalidFileError,
     InvalidFolderError,
     NoDownloadableFileError,
@@ -34,8 +36,10 @@ def _client_ip(request: Request) -> str | None:
 @router.post("", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def create_document(data: DocumentCreate, db: DbSession, current_user: CurrentUser, request: Request):
     try:
-        document = await service.create_document(db, current_user.id, data)
+        document = await service.create_document(db, current_user.id, data, is_staff(current_user))
     except InvalidFolderError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except InvalidAssigneeError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
     await service.log_audit_action(
@@ -64,7 +68,9 @@ async def upload_document(
     data = DocumentCreate(title=title, description=description, doc_type=doc_type, folder_id=folder_id)
 
     try:
-        document = await service.create_document_with_file(db, current_user.id, data, file_bytes, file.filename)
+        document = await service.create_document_with_file(
+            db, current_user.id, data, file_bytes, file.filename, is_staff(current_user)
+        )
     except InvalidFolderError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except InvalidFileError as error:
@@ -133,6 +139,7 @@ async def list_documents(
     physical_shelf: str | None = None,
     archived_year: int | None = None,
     owner_id: uuid.UUID | None = None,
+    assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
 ):
@@ -145,6 +152,7 @@ async def list_documents(
         physical_shelf,
         archived_year,
         owner_id,
+        assigned_to_id,
         page,
         per_page,
     )
@@ -248,8 +256,10 @@ async def update_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
 
     try:
-        return await service.update_document(db, document, data)
+        return await service.update_document(db, document, data, is_staff(current_user))
     except InvalidFolderError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
+    except InvalidAssigneeError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
 
