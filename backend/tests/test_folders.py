@@ -144,6 +144,7 @@ async def test_admin_lists_folders_from_all_users_without_owner_filter(db_sessio
 
     await db_session.delete(own_folder)
     await db_session.delete(other_folder)
+    await db_session.commit()
     await db_session.delete(other_student)
     await db_session.delete(admin)
     await db_session.commit()
@@ -171,5 +172,6 @@ async def test_student_only_lists_own_folders(db_session, test_user):
 
     await db_session.delete(own_folder)
     await db_session.delete(other_folder)
+    await db_session.commit()
     await db_session.delete(other_student)
     await db_session.commit()
