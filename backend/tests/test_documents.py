@@ -121,6 +121,74 @@ async def test_student_cannot_access_another_users_document(db_session, test_use
 
 
 @pytest.mark.asyncio
+async def test_admin_lists_documents_from_all_users_without_owner_filter(db_session, test_user):
+    own_document = await create_document(db_session, test_user.id, DocumentCreate(title="Propio del admin"))
+
+    other_student = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Otro Estudiante",
+    )
+    db_session.add(other_student)
+    await db_session.commit()
+    await db_session.refresh(other_student)
+    other_document = await create_document(
+        db_session, other_student.id, DocumentCreate(title="De otro estudiante")
+    )
+
+    admin = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Admin de Test",
+        role="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    items, total = await list_documents(db_session, admin)
+    ids = {item.id for item in items}
+
+    assert own_document.id in ids
+    assert other_document.id in ids
+    assert total >= 2
+
+    await db_session.delete(own_document)
+    await db_session.delete(other_document)
+    await db_session.delete(other_student)
+    await db_session.delete(admin)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_student_only_lists_own_documents(db_session, test_user):
+    own_document = await create_document(db_session, test_user.id, DocumentCreate(title="Propio"))
+
+    other_student = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Otro Estudiante",
+    )
+    db_session.add(other_student)
+    await db_session.commit()
+    await db_session.refresh(other_student)
+    other_document = await create_document(
+        db_session, other_student.id, DocumentCreate(title="Ajeno")
+    )
+
+    items, total = await list_documents(db_session, test_user)
+    ids = {item.id for item in items}
+
+    assert own_document.id in ids
+    assert other_document.id not in ids
+
+    await db_session.delete(own_document)
+    await db_session.delete(other_document)
+    await db_session.delete(other_student)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_list_documents_filters_by_status(db_session, test_user):
     doc_pending = await create_document(db_session, test_user.id, DocumentCreate(title="Pendiente"))
     doc_other = await create_document(db_session, test_user.id, DocumentCreate(title="Completado"))

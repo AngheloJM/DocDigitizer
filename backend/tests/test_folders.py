@@ -6,7 +6,7 @@ from app.auth.models import User
 from app.auth.service import hash_password
 from app.database import SessionLocal
 from app.folders.schemas import FolderCreate, FolderUpdate
-from app.folders.service import InvalidParentError, create_folder, get_folder, update_folder
+from app.folders.service import InvalidParentError, create_folder, get_folder, list_folders, update_folder
 
 
 @pytest.fixture
@@ -108,5 +108,70 @@ async def test_student_cannot_access_another_users_folder(db_session, test_user)
     assert found is None
 
     await db_session.delete(folder)
+    await db_session.delete(other_student)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_admin_lists_folders_from_all_users_without_owner_filter(db_session, test_user):
+    own_folder = await create_folder(db_session, test_user.id, FolderCreate(name="Propia del admin"))
+
+    other_student = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Otro Estudiante",
+    )
+    db_session.add(other_student)
+    await db_session.commit()
+    await db_session.refresh(other_student)
+    other_folder = await create_folder(db_session, other_student.id, FolderCreate(name="De otro estudiante"))
+
+    admin = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Admin de Test",
+        role="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    folders = await list_folders(db_session, admin, parent_id=None)
+    ids = {folder.id for folder in folders}
+
+    assert own_folder.id in ids
+    assert other_folder.id in ids
+
+    await db_session.delete(own_folder)
+    await db_session.delete(other_folder)
+    await db_session.commit()
+    await db_session.delete(other_student)
+    await db_session.delete(admin)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_student_only_lists_own_folders(db_session, test_user):
+    own_folder = await create_folder(db_session, test_user.id, FolderCreate(name="Propia"))
+
+    other_student = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Otro Estudiante",
+    )
+    db_session.add(other_student)
+    await db_session.commit()
+    await db_session.refresh(other_student)
+    other_folder = await create_folder(db_session, other_student.id, FolderCreate(name="Ajena"))
+
+    folders = await list_folders(db_session, test_user, parent_id=None)
+    ids = {folder.id for folder in folders}
+
+    assert own_folder.id in ids
+    assert other_folder.id not in ids
+
+    await db_session.delete(own_folder)
+    await db_session.delete(other_folder)
+    await db_session.commit()
     await db_session.delete(other_student)
     await db_session.commit()
