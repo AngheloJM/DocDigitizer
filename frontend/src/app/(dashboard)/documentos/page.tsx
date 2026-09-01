@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
+import { Pagina } from "@/components/ui/paginacion";
 import {
   formatArchivedPeriod,
   formatPhysicalLocation,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/types";
 
 const YEAR_OPTIONS = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
+const PAGI_SIZE = 10;
 
 function DocumentosContent() {
   const params = useSearchParams();
@@ -21,6 +23,8 @@ function DocumentosContent() {
   const openUpload = params.get("upload") === "1";
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [pagina, setPagina] = useState(1);
+  const [totalPaginas, setTotalPaginas] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(openUpload);
@@ -37,19 +41,23 @@ function DocumentosContent() {
     setError(null);
     try {
       const data = await backend.documents.list({
-        perPage: 50,
-        archivedYear: yearFilter ? Number(yearFilter) : null,
+        page: pagina,
+        perPage: PAGI_SIZE,
+        archivedYear: yearFilter
+          ? Number(yearFilter)
+          : null,
         physicalShelf: shelfFilter.trim() || null,
         statusFilter: statusFilter || null,
       });
       setItems(data.items);
       setTotal(data.total);
+      setTotalPaginas(data.pages);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudieron cargar los documentos");
     } finally {
       setLoading(false);
     }
-  }, [yearFilter, shelfFilter, statusFilter]);
+  }, [pagina, yearFilter, shelfFilter, statusFilter]);
 
   useEffect(() => {
     setLoading(true);
@@ -90,7 +98,7 @@ function DocumentosContent() {
       setFile(null);
       setUploading(false);
       router.replace("/documentos");
-      await load();
+      if (pagina === 1) {await load();}else{setPagina(1);}
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo subir el documento");
     }
@@ -163,7 +171,7 @@ function DocumentosContent() {
           </label>
           <select
             value={yearFilter}
-            onChange={(event) => setYearFilter(event.target.value)}
+            onChange={(event) => {setYearFilter(event.target.value); setPagina(1);}}
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           >
             <option value="">Todos</option>
@@ -180,7 +188,7 @@ function DocumentosContent() {
           </label>
           <input
             value={shelfFilter}
-            onChange={(event) => setShelfFilter(event.target.value)}
+            onChange={(event) => {setShelfFilter(event.target.value); setPagina(1);}}
             placeholder="Ej: A1"
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           />
@@ -191,7 +199,7 @@ function DocumentosContent() {
           </label>
           <select
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            onChange={(event) => {setStatusFilter(event.target.value); setPagina(1);}}
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           >
             <option value="">Todos</option>
@@ -334,6 +342,24 @@ function DocumentosContent() {
             </table>
           </div>
         )}
+        {!loading && items.length > 0 && totalPaginas > 1 && (
+          <div className="border-t border-outline-variant p-4"
+          >
+            <Pagina
+            PaginaActual={pagina}
+            TotalPaginas={totalPaginas}
+            disabled={loading}
+            cambioPagina={(selectionPage)=> {
+              setPagina(selectionPage);
+              window.scrollTo({
+                top: 0,
+                behavior: "smooth",
+              });
+            }}
+            
+            />
+          </div>
+        )}
       </div>
     </>
   );
@@ -346,3 +372,5 @@ export default function DocumentosPage() {
     </Suspense>
   );
 }
+
+// modificaiones mias: dividir la lista por paginas = alexd
