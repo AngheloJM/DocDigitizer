@@ -2,6 +2,25 @@
 
 Sistema de gestión, digitalización y organización automatizada de documentos.
 
+## Qué es este proyecto y qué se planea hacer con él
+
+**Para qué sirve:** DocDigitizer es el archivo digital de UTEPSA. Reemplaza el registro manual del archivo físico institucional (títulos profesionales, diplomas, resoluciones rectorales, actas de defensa, cartas y solicitudes, etc.) por un sistema donde cada documento queda catalogado con su ubicación física real (estante/división/columna/tomo) y el período que cubre (año y mes), y además se puede escanear, digitalizar automáticamente (OCR) y buscar por su contenido de texto.
+
+**Cómo nació:** el punto de partida fue un sistema hecho por un becario (una planilla en Firebase con un formulario simple) que solo guardaba la ubicación física de los tomos, sin escaneo ni búsqueda. Ese catálogo original (**289 registros reales**) ya fue migrado a este sistema nuevo — hoy existen como documentos registrados pendientes de que se les suba el escaneo real.
+
+**En qué estado está hoy (31/08/2026):**
+- El backend (API, procesamiento OCR, base de datos) está completo y funcionando en producción.
+- El frontend (la aplicación web que usa el personal del archivo) está funcional para las tareas principales: ver, subir, buscar y organizar documentos. Algunas pantallas de gestión más avanzada (editar un documento ya creado, crear usuarios nuevos, asignar documentos a una persona en particular) todavía no tienen interfaz visual, aunque el backend ya las soporta — ver [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md) para el detalle de qué falta.
+- El sistema corre actualmente en un entorno de pruebas en la nube (Render + Neon + Upstash + Cloudflare R2), usando planes gratuitos — pensado para validar que todo funcione antes de decidir el despliegue definitivo.
+
+**Qué falta y qué se está evaluando:**
+- Terminar las pantallas pendientes del frontend (ver lista priorizada en [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)).
+- Subir los escaneos reales de los 289 documentos migrados conforme se vayan digitalizando.
+- Definir el despliegue definitivo: se van a preparar dos guías de despliegue al cierre del proyecto — una para seguir en la nube (como está ahora, pero en planes pagos sin las limitaciones del free tier) y otra para instalarlo completamente dentro de la infraestructura de la universidad (on-premise), por si UTEPSA prefiere no depender de servicios externos. Todavía no está decidido cuál de las dos se va a usar en definitiva.
+- Endurecer detalles de seguridad y rendimiento que hoy están simplificados por ser un entorno de pruebas (por ejemplo, las reglas de acceso entre el frontend y el backend, y los límites de intentos en ciertas acciones).
+
+Si sos usuario del sistema y tenés dudas sobre cuándo vas a poder usarlo de forma definitiva o qué va a pasar con tus datos actuales, consultá con el equipo del proyecto — este documento se actualiza a medida que avanza el desarrollo.
+
 ## Estructura del repositorio
 
 - `backend/` — API REST (FastAPI), procesamiento de documentos (OCR) y base de datos.
