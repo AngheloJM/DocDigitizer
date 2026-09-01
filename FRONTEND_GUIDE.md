@@ -28,6 +28,19 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 Ninguno de estos bloquea el uso básico del sistema.
 
+## Ideas de diseño de referencia (31/08/2026)
+
+Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
+
+7. **Dashboard/inicio con resumen y "actividad reciente"** — hoy el login redirige directo a `/carpetas`; no existe ninguna pantalla de inicio. Se podría armar una página `/` (o `/inicio`) con: tarjetas de resumen (total de documentos, pendientes, completados), y una lista de los últimos 5-10 documentos actualizados (`GET /documents?per_page=5` ordenado por fecha, que ya viene ordenado por `created_at desc`).
+8. **Mapa visual de estantes en `/carpetas`** — un bloque arriba de la lista de carpetas con casilleros numerados (uno por cada valor distinto de `physical_shelf` que ya exista en los documentos), para ubicar de un vistazo qué estantes tienen contenido. Encaja directo con los campos `physical_shelf`/`physical_division`/`physical_column`/`physical_volume` que ya tenemos.
+9. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
+10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+
+⚠️ **Ojo con esto:** en ese mockup, debajo del mapa y la grilla de carpetas hay una tercera sección ("Estructura documental / Taxonomía institucional") que repite la misma lista de carpetas con los mismos conteos, en formato de lista plana — es puramente redundante con la grilla de arriba, no aporta nada nuevo. **No la repliquen** si toman ideas de ese mockup.
+
+**Fuera de alcance por ahora (requeriría cambios de backend, no solo de frontend):** ese mockup también tiene un módulo de "recordatorios" (documentos con fecha de vencimiento, semáforo vigente/por vencer/vencido) y un campo de "rango de folios" dentro de la ubicación física. Ninguno de los dos existe en nuestro modelo de datos actual (`documents` no tiene fecha de vencimiento ni rango de folios) — si se decide que aplica al caso real de UTEPSA (por ejemplo, convenios institucionales con fecha de vencimiento), habría que diseñarlo primero como feature de backend antes de construir la UI.
+
 ## Antes de empezar
 
 Levanta el backend localmente siguiendo la sección "Backend — guía rápida para el equipo de frontend" del [README.md](README.md). Una vez arriba:
