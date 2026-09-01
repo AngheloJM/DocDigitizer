@@ -3,6 +3,10 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 
+# Mockup de referencia de un compañero de curso (no forma parte de este proyecto)
+/pruebas/
+/pruebas.rar
+
 # Documentos
 *.docx
 
