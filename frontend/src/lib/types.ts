@@ -53,6 +53,7 @@ export type DocumentItem = {
   archived_year: number | null;
   archived_month_start: number | null;
   archived_month_end: number | null;
+  assigned_to_id: string | null;
   created_at: string;
   processed_at: string | null;
 };
