@@ -8,6 +8,7 @@ export type DocumentListFilters = {
   statusFilter?: string | null;
   physicalShelf?: string | null;
   archivedYear?: number | null;
+  assignedToId?: string | null;
 };
 
 export const backend = {
@@ -35,8 +36,11 @@ export const backend = {
       if (filters.statusFilter) params.set("status_filter", filters.statusFilter);
       if (filters.physicalShelf) params.set("physical_shelf", filters.physicalShelf);
       if (filters.archivedYear != null) params.set("archived_year", String(filters.archivedYear));
+      if (filters.assignedToId) params.set("assigned_to_id", filters.assignedToId);
       return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
     },
+    update: (id: string, data: { assigned_to_id?: string | null }) =>
+      api<DocumentItem>(`/documents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     upload: (form: FormData) =>
       api<{ document_id: string; task_id: string | null; status: string }>("/documents/upload", {
         method: "POST",
