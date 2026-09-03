@@ -2,29 +2,24 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-## Estado actual (2026-08-29)
+## Estado actual (2026-09-03)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
 - **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
-- **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado), columnas de período/ubicación física, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
 - **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar.
-- Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio) — ver sección 3.
-- Campo `assigned_to_id` en documentos (staff puede asignar un documento a otro usuario sin cambiar el dueño) — ver sección 3.
-
-**⏳ Pendiente — prioridad alta:**
-
-1. **UI para asignar documentos a un usuario** — el backend ya soporta `assigned_to_id` (`PATCH /documents/{id}`, solo staff), pero no hay ningún selector en `/documentos` para elegir a quién asignarle un documento. Caso de uso real: un admin reparte los 289 documentos migrados entre varios usuarios para que cada uno digitalice/revise los suyos.
-2. **Indicador de "asignado a mí"** — un usuario no-staff que tiene documentos asignados (no propios) hoy los va a ver mezclados en `/documentos` sin distinguir cuáles son suyos y cuáles le asignaron; falta una columna o filtro visual para eso.
+- Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
 
 **⏳ Pendiente — prioridad media:**
 
-3. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado.
-4. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
-5. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó esta semana) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
-6. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
+1. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado (sí se puede editar la asignación, ver arriba).
+2. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
+3. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó hace unos días) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
+4. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
 
 Ninguno de estos bloquea el uso básico del sistema.
 
@@ -32,10 +27,10 @@ Ninguno de estos bloquea el uso básico del sistema.
 
 Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
 
-7. **Dashboard/inicio con resumen y "actividad reciente"** — hoy el login redirige directo a `/carpetas`; no existe ninguna pantalla de inicio. Se podría armar una página `/` (o `/inicio`) con: tarjetas de resumen (total de documentos, pendientes, completados), y una lista de los últimos 5-10 documentos actualizados (`GET /documents?per_page=5` ordenado por fecha, que ya viene ordenado por `created_at desc`).
-8. **Mapa visual de estantes en `/carpetas`** — un bloque arriba de la lista de carpetas con casilleros numerados (uno por cada valor distinto de `physical_shelf` que ya exista en los documentos), para ubicar de un vistazo qué estantes tienen contenido. Encaja directo con los campos `physical_shelf`/`physical_division`/`physical_column`/`physical_volume` que ya tenemos.
-9. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
-10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+5. **Dashboard/inicio con resumen y "actividad reciente"** — hoy el login redirige directo a `/carpetas`; no existe ninguna pantalla de inicio. Se podría armar una página `/` (o `/inicio`) con: tarjetas de resumen (total de documentos, pendientes, completados), y una lista de los últimos 5-10 documentos actualizados (`GET /documents?per_page=5` ordenado por fecha, que ya viene ordenado por `created_at desc`).
+6. **Mapa visual de estantes en `/carpetas`** — un bloque arriba de la lista de carpetas con casilleros numerados (uno por cada valor distinto de `physical_shelf` que ya exista en los documentos), para ubicar de un vistazo qué estantes tienen contenido. Encaja directo con los campos `physical_shelf`/`physical_division`/`physical_column`/`physical_volume` que ya tenemos.
+7. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
+8. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
 
 ⚠️ **Ojo con esto:** en ese mockup, debajo del mapa y la grilla de carpetas hay una tercera sección ("Estructura documental / Taxonomía institucional") que repite la misma lista de carpetas con los mismos conteos, en formato de lista plana — es puramente redundante con la grilla de arriba, no aporta nada nuevo. **No la repliquen** si toman ideas de ese mockup.
 
