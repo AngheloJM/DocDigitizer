@@ -1,5 +1,7 @@
 export type Role = "student" | "admin" | "super_admin";
 
+export type ManageableRole = Exclude<Role, "super_admin">;
+
 export type User = {
   id: string;
   email: string;
@@ -45,6 +47,7 @@ export type DocumentItem = {
   doc_type: string | null;
   status: DocumentStatus | string;
   user_id: string;
+  assigned_to_id: string | null;
   folder_id: string | null;
   physical_shelf: string | null;
   physical_division: string | null;
@@ -152,3 +155,29 @@ export function formatArchivedPeriod(doc: {
 export function needsScanUpload(status: string) {
   return status === "pending" || status === "failed";
 }
+
+export type UserCreateInput = {
+  email: string;
+  password: string;
+  full_name: string;
+  role: ManageableRole;
+};
+
+export type UserUpdateInput = {
+  role?: ManageableRole;
+  is_active?: boolean;
+};
+
+export type DocumentUpdateInput = {
+  title?: string;
+  description?: string | null;
+  doc_type?: string | null;
+  folder_id?: string | null;
+  physical_shelf?: string | null;
+  physical_division?: string | null;
+  physical_column?: string | null;
+  physical_volume?: string | null;
+  archived_year?: number | null;
+  archived_month_start?: number | null;
+  archived_month_end?: number | null;
+};

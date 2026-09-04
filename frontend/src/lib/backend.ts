@@ -1,5 +1,14 @@
 import { api } from "@/lib/api";
-import type { DocumentItem, Folder, Paginated, SearchResult, User } from "@/lib/types";
+import type {
+  DocumentItem,
+  DocumentUpdateInput,
+  Folder,
+  Paginated,
+  SearchResult,
+  User,
+  UserCreateInput,
+  UserUpdateInput,
+} from "@/lib/types";
 
 export type DocumentListFilters = {
   page?: number;
@@ -15,12 +24,22 @@ export const backend = {
     me: () => api<User>("/auth/me"),
     listUsers: (page = 1, perPage = 20) =>
       api<Paginated<User>>(`/auth/users?page=${page}&per_page=${perPage}`),
-    updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>
+    createUser: (data: UserCreateInput) =>
+      api<User>("/auth/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateUser: (id: string, data: UserUpdateInput) =>
       api<User>(`/auth/users/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   },
   folders: {
-    list: (parentId?: string | null) =>
-      api<Folder[]>(parentId ? `/folders?parent_id=${parentId}` : "/folders"),
+    list: (parentId?: string | null, ownerId?: string | null) => {
+      const params = new URLSearchParams();
+      if (parentId) params.set("parent_id", parentId);
+      if (ownerId) params.set("owner_id", ownerId);
+      const query = params.toString();
+      return api<Folder[]>(query ? `/folders?${query}` : "/folders");
+    },
     create: (data: { name: string; description?: string | null; parent_id?: string | null }) =>
       api<Folder>("/folders", { method: "POST", body: JSON.stringify(data) }),
     remove: (id: string) => api<void>(`/folders/${id}`, { method: "DELETE" }),
@@ -37,6 +56,11 @@ export const backend = {
       if (filters.archivedYear != null) params.set("archived_year", String(filters.archivedYear));
       return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
     },
+    update: (id: string, data: DocumentUpdateInput) =>
+      api<DocumentItem>(`/documents/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     upload: (form: FormData) =>
       api<{ document_id: string; task_id: string | null; status: string }>("/documents/upload", {
         method: "POST",

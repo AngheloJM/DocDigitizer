@@ -2,6 +2,8 @@
 
 import { FormEvent, Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
@@ -10,6 +12,7 @@ import { Pagina } from "@/components/ui/paginacion";
 import {
   formatArchivedPeriod,
   formatPhysicalLocation,
+  isStaff,
   needsScanUpload,
   type DocumentItem,
 } from "@/lib/types";
@@ -18,6 +21,7 @@ const YEAR_OPTIONS = Array.from({ length: 15 }, (_, i) => new Date().getFullYear
 const PAGI_SIZE = 10;
 
 function DocumentosContent() {
+  const { user } = useAuth();
   const params = useSearchParams();
   const router = useRouter();
   const openUpload = params.get("upload") === "1";
@@ -35,6 +39,7 @@ function DocumentosContent() {
   const [statusFilter, setStatusFilter] = useState("");
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -133,6 +138,22 @@ function DocumentosContent() {
       setScanBusy(false);
       setScanDocId(null);
     }
+  }
+
+  function canEditDocument(document: DocumentItem) {
+    if (!user) return false;
+    return (
+      isStaff(user.role) ||
+      document.user_id === user.id ||
+      document.assigned_to_id === user.id
+    );
+  }
+
+  function handleDocumentSaved(updated: DocumentItem) {
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    setEditingDocument(null);
   }
 
   return (
@@ -314,6 +335,17 @@ function DocumentosContent() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex items-center gap-1 justify-end">
+                        {canEditDocument(doc) && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingDocument(doc)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            title="Editar documento"
+                            aria-label={`Editar ${doc.title}`}
+                          >
+                            <Icon name="edit" className="text-lg" />
+                          </button>
+                        )}
                         {needsScanUpload(doc.status) && (
                           <button
                             type="button"
@@ -361,6 +393,13 @@ function DocumentosContent() {
           </div>
         )}
       </div>
+
+      <DocumentEditModal
+        open={editingDocument !== null}
+        document={editingDocument}
+        onClose={() => setEditingDocument(null)}
+        onSaved={handleDocumentSaved}
+      />
     </>
   );
 }
