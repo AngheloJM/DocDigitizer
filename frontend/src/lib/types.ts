@@ -180,4 +180,5 @@ export type DocumentUpdateInput = {
   archived_year?: number | null;
   archived_month_start?: number | null;
   archived_month_end?: number | null;
+  assigned_to_id?: string | null;
 };

@@ -1,20 +1,21 @@
 "use client";
 
-import { FormEvent, Suspense, useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Pagina } from "@/components/ui/paginacion";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { Pagina } from "@/components/ui/paginacion";
 import {
   formatArchivedPeriod,
   formatPhysicalLocation,
   isStaff,
   needsScanUpload,
   type DocumentItem,
+  type User,
 } from "@/lib/types";
 
 const YEAR_OPTIONS = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i);
@@ -25,7 +26,10 @@ function DocumentosContent() {
   const params = useSearchParams();
   const router = useRouter();
   const openUpload = params.get("upload") === "1";
+  const staff = Boolean(user && isStaff(user.role));
+
   const [items, setItems] = useState<DocumentItem[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [totalPaginas, setTotalPaginas] = useState(0);
@@ -34,26 +38,45 @@ function DocumentosContent() {
   const [uploading, setUploading] = useState(openUpload);
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [yearFilter, setYearFilter] = useState<string>("");
+  const [yearFilter, setYearFilter] = useState("");
   const [shelfFilter, setShelfFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
+  const usersById = useMemo(() => {
+    const map = new Map<string, User>();
+    for (const row of users) map.set(row.id, row);
+    return map;
+  }, [users]);
+
+  const loadUsers = useCallback(async () => {
+    if (!staff) return;
+    try {
+      const data = await backend.auth.listUsers(1, 100);
+      setUsers(data.items.filter((row) => row.is_active));
+    } catch {
+      /* staff puede seguir sin el selector si falla */
+    }
+  }, [staff]);
+
   const load = useCallback(async () => {
+    if (!user) return;
     setError(null);
     try {
       const data = await backend.documents.list({
         page: pagina,
         perPage: PAGI_SIZE,
-        archivedYear: yearFilter
-          ? Number(yearFilter)
-          : null,
+        archivedYear: yearFilter ? Number(yearFilter) : null,
         physicalShelf: shelfFilter.trim() || null,
         statusFilter: statusFilter || null,
+        assignedToId: assignmentFilter === "mine" ? user.id : null,
       });
+
       setItems(data.items);
       setTotal(data.total);
       setTotalPaginas(data.pages);
@@ -62,7 +85,11 @@ function DocumentosContent() {
     } finally {
       setLoading(false);
     }
-  }, [pagina, yearFilter, shelfFilter, statusFilter]);
+  }, [user, pagina, yearFilter, shelfFilter, statusFilter, assignmentFilter]);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     setLoading(true);
@@ -103,7 +130,8 @@ function DocumentosContent() {
       setFile(null);
       setUploading(false);
       router.replace("/documentos");
-      if (pagina === 1) {await load();}else{setPagina(1);}
+      if (pagina === 1) await load();
+      else setPagina(1);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo subir el documento");
     }
@@ -156,6 +184,26 @@ function DocumentosContent() {
     setEditingDocument(null);
   }
 
+  async function onAssign(docId: string, assignedToId: string) {
+    if (!assignedToId) return;
+    setAssigningId(docId);
+    setError(null);
+    try {
+      const updated = await backend.documents.update(docId, { assigned_to_id: assignedToId });
+      setItems((current) => current.map((doc) => (doc.id === docId ? { ...doc, ...updated } : doc)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo asignar el documento");
+    } finally {
+      setAssigningId(null);
+    }
+  }
+
+  function assigneeLabel(doc: DocumentItem) {
+    if (!doc.assigned_to_id) return "Sin asignar";
+    if (user && doc.assigned_to_id === user.id) return "Asignado a mí";
+    return usersById.get(doc.assigned_to_id)?.full_name ?? "Usuario asignado";
+  }
+
   return (
     <>
       <input
@@ -172,8 +220,8 @@ function DocumentosContent() {
             Documentos
           </h2>
           <p className="text-sm text-on-surface-variant max-w-2xl">
-            Listado del archivo con ubicación física y período. Los pendientes sin escaneo pueden
-            recibir el archivo después.
+            Listado del archivo con ubicación, período y asignación. Los pendientes pueden recibir el
+            escaneo después.
           </p>
         </div>
         <button
@@ -185,14 +233,17 @@ function DocumentosContent() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
             Año archivado
           </label>
           <select
             value={yearFilter}
-            onChange={(event) => {setYearFilter(event.target.value); setPagina(1);}}
+            onChange={(event) => {
+              setYearFilter(event.target.value);
+              setPagina(1);
+            }}
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           >
             <option value="">Todos</option>
@@ -209,7 +260,10 @@ function DocumentosContent() {
           </label>
           <input
             value={shelfFilter}
-            onChange={(event) => {setShelfFilter(event.target.value); setPagina(1);}}
+            onChange={(event) => {
+              setShelfFilter(event.target.value);
+              setPagina(1);
+            }}
             placeholder="Ej: A1"
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           />
@@ -220,7 +274,10 @@ function DocumentosContent() {
           </label>
           <select
             value={statusFilter}
-            onChange={(event) => {setStatusFilter(event.target.value); setPagina(1);}}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              setPagina(1);
+            }}
             className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
           >
             <option value="">Todos</option>
@@ -228,6 +285,22 @@ function DocumentosContent() {
             <option value="processing">Procesando</option>
             <option value="completed">Completado</option>
             <option value="failed">Fallido</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
+            Asignación
+          </label>
+          <select
+            value={assignmentFilter}
+            onChange={(event) => {
+              setAssignmentFilter(event.target.value as "all" | "mine");
+              setPagina(1);
+            }}
+            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+          >
+            <option value="all">Todos</option>
+            <option value="mine">Asignados a mí</option>
           </select>
         </div>
       </div>
@@ -238,9 +311,6 @@ function DocumentosContent() {
           className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 space-y-4"
         >
           <h3 className="text-sm font-semibold text-on-surface">Carga en un paso</h3>
-          <p className="text-xs text-on-surface-variant">
-            Si el PDF tiene varias páginas, solo se procesa la primera.
-          </p>
           <div>
             <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
               Título
@@ -285,14 +355,14 @@ function DocumentosContent() {
       {error && (
         <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>
       )}
-      {scanBusy && (
-        <p className="text-sm text-on-surface-variant mb-4">Subiendo escaneo...</p>
-      )}
+      {scanBusy && <p className="text-sm text-on-surface-variant mb-4">Subiendo escaneo...</p>}
 
       <div className="bg-white rounded-2xl border border-outline-variant">
         <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
-          <p className="text-xs text-on-surface-variant">{total} documento{total === 1 ? "" : "s"}</p>
+          <p className="text-xs text-on-surface-variant">
+            {total} documento{total === 1 ? "" : "s"}
+          </p>
         </div>
         {loading ? (
           <div className="py-8 text-center text-on-surface-variant text-sm">Cargando documentos...</div>
@@ -302,93 +372,136 @@ function DocumentosContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[800px]">
+            <table className="w-full text-left border-collapse min-w-[980px]">
               <thead>
                 <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
                   <th className="py-3 px-4 font-medium">Título</th>
                   <th className="py-3 px-4 font-medium">Período</th>
                   <th className="py-3 px-4 font-medium">Ubicación</th>
+                  <th className="py-3 px-4 font-medium">Asignación</th>
                   <th className="py-3 px-4 font-medium">Estado</th>
                   <th className="py-3 px-4 text-right font-medium">Acciones</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {items.map((doc) => (
-                  <tr
-                    key={doc.id}
-                    className="border-b border-outline-variant hover:bg-surface-container transition-colors"
-                  >
-                    <td className="py-3 px-4">
-                      <p className="font-medium text-on-surface">{doc.title}</p>
-                      {doc.doc_type && (
-                        <p className="text-xs text-on-surface-variant mt-0.5">{doc.doc_type}</p>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
-                      {formatArchivedPeriod(doc)}
-                    </td>
-                    <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px]">
-                      {formatPhysicalLocation(doc)}
-                    </td>
-                    <td className="py-3 px-4">
-                      <StatusBadge status={doc.status} />
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-1 justify-end">
-                        {canEditDocument(doc) && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingDocument(doc)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                            title="Editar documento"
-                            aria-label={`Editar ${doc.title}`}
+                {items.map((doc) => {
+                  const assignedToMe = Boolean(user && doc.assigned_to_id === user.id);
+                  const isOwn = Boolean(user && doc.user_id === user.id);
+
+                  return (
+                    <tr
+                      key={doc.id}
+                      className={`border-b border-outline-variant hover:bg-surface-container transition-colors ${
+                        assignedToMe ? "bg-secondary-container/40" : ""
+                      }`}
+                    >
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-on-surface">{doc.title}</p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {doc.doc_type && (
+                            <span className="text-xs text-on-surface-variant">{doc.doc_type}</span>
+                          )}
+                          {assignedToMe && (
+                            <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
+                              Asignado a mí
+                            </span>
+                          )}
+                          {!staff && isOwn && !assignedToMe && (
+                            <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                              Propio
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
+                        {formatArchivedPeriod(doc)}
+                      </td>
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px]">
+                        {formatPhysicalLocation(doc)}
+                      </td>
+                      <td className="py-3 px-4">
+                        {staff ? (
+                          <select
+                            value={doc.assigned_to_id ?? ""}
+                            disabled={assigningId === doc.id}
+                            onChange={(event) => {
+                              if (event.target.value) void onAssign(doc.id, event.target.value);
+                            }}
+                            className="w-full max-w-[180px] border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           >
-                            <Icon name="edit" className="text-lg" />
-                          </button>
+                            <option value="">
+                              {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
+                            </option>
+                            {doc.assigned_to_id && !usersById.has(doc.assigned_to_id) && (
+                              <option value={doc.assigned_to_id}>{assigneeLabel(doc)}</option>
+                            )}
+                            {users.map((row) => (
+                              <option key={row.id} value={row.id}>
+                                {row.full_name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs text-on-surface-variant">
+                            {assigneeLabel(doc)}
+                          </span>
                         )}
-                        {needsScanUpload(doc.status) && (
-                          <button
-                            type="button"
-                            onClick={() => openScanPicker(doc.id)}
-                            disabled={scanBusy}
-                            className="text-primary hover:bg-primary/5 p-1.5 rounded-2xl inline-flex"
-                            title="Subir escaneo"
-                          >
-                            <Icon name="upload_file" className="text-lg" />
-                          </button>
-                        )}
-                        {doc.status === "completed" ? (
-                          <a
-                            href={backend.documents.downloadUrl(doc.id)}
-                            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
-                            title="Descargar"
-                          >
-                            <Icon name="download" className="text-lg" />
-                          </a>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-4">
+                        <StatusBadge status={doc.status} />
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1 justify-end">
+                          {canEditDocument(doc) && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingDocument(doc)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              title="Editar documento"
+                              aria-label={`Editar ${doc.title}`}
+                            >
+                              <Icon name="edit" className="text-lg" />
+                            </button>
+                          )}
+                          {needsScanUpload(doc.status) && (
+                            <button
+                              type="button"
+                              onClick={() => openScanPicker(doc.id)}
+                              disabled={scanBusy}
+                              className="text-primary hover:bg-primary/5 p-1.5 rounded-2xl inline-flex"
+                              title="Subir escaneo"
+                            >
+                              <Icon name="upload_file" className="text-lg" />
+                            </button>
+                          )}
+                          {doc.status === "completed" ? (
+                            <a
+                              href={backend.documents.downloadUrl(doc.id)}
+                              className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
+                              title="Descargar"
+                            >
+                              <Icon name="download" className="text-lg" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
         {!loading && items.length > 0 && totalPaginas > 1 && (
-          <div className="border-t border-outline-variant p-4"
-          >
+          <div className="border-t border-outline-variant p-4">
             <Pagina
-            PaginaActual={pagina}
-            TotalPaginas={totalPaginas}
-            disabled={loading}
-            cambioPagina={(selectionPage)=> {
-              setPagina(selectionPage);
-              window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-              });
-            }}
-            
+              PaginaActual={pagina}
+              TotalPaginas={totalPaginas}
+              disabled={loading}
+              cambioPagina={(selectionPage) => {
+                setPagina(selectionPage);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             />
           </div>
         )}
@@ -411,5 +524,3 @@ export default function DocumentosPage() {
     </Suspense>
   );
 }
-
-// modificaiones mias: dividir la lista por paginas = alexd

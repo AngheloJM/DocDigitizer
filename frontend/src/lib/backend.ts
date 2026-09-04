@@ -17,6 +17,7 @@ export type DocumentListFilters = {
   statusFilter?: string | null;
   physicalShelf?: string | null;
   archivedYear?: number | null;
+  assignedToId?: string | null;
 };
 
 export const backend = {
@@ -54,6 +55,7 @@ export const backend = {
       if (filters.statusFilter) params.set("status_filter", filters.statusFilter);
       if (filters.physicalShelf) params.set("physical_shelf", filters.physicalShelf);
       if (filters.archivedYear != null) params.set("archived_year", String(filters.archivedYear));
+      if (filters.assignedToId) params.set("assigned_to_id", filters.assignedToId);
       return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
     },
     update: (id: string, data: DocumentUpdateInput) =>
