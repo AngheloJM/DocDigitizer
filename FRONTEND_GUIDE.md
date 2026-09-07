@@ -20,6 +20,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 1. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó hace unos días) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
 2. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
 3. **Filtro por rango de meses** en `/documentos` — el backend ya soporta `?archived_month_from=&archived_month_to=` (ver sección 3), falta el selector en la UI (hoy solo hay filtro por año exacto).
+4. **Navegación por ubicación física real** (`GET /documents/locations`, nuevo 07/09/2026 — ver sección 2) — endpoint listo y verificado contra los 289 documentos reales (estante → división → columna → tomo), pero todavía no hay ninguna pantalla que lo use. Es la base para reemplazar (o complementar) el árbol manual de `/carpetas` por la estructura física real del archivo — decisión de diseño que queda del lado del frontend.
 
 Ninguno de estos bloquea el uso básico del sistema.
 
@@ -30,7 +31,7 @@ Ninguno de estos bloquea el uso básico del sistema.
 Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
 
 5. **Dashboard/inicio con resumen y "actividad reciente"** — hoy el login redirige directo a `/carpetas`; no existe ninguna pantalla de inicio. Se podría armar una página `/` (o `/inicio`) con: tarjetas de resumen (total de documentos, pendientes, completados), y una lista de los últimos 5-10 documentos actualizados (`GET /documents?per_page=5` ordenado por fecha, que ya viene ordenado por `created_at desc`).
-6. **Mapa visual de estantes en `/carpetas`** — un bloque arriba de la lista de carpetas con casilleros numerados (uno por cada valor distinto de `physical_shelf` que ya exista en los documentos), para ubicar de un vistazo qué estantes tienen contenido. Encaja directo con los campos `physical_shelf`/`physical_division`/`physical_column`/`physical_volume` que ya tenemos.
+6. **Mapa visual de estantes en `/carpetas`** — un bloque arriba de la lista de carpetas con casilleros numerados (uno por cada valor distinto de `physical_shelf` que ya exista en los documentos), para ubicar de un vistazo qué estantes tienen contenido. **Ya no es solo una idea de diseño** — el backend real para esto ya existe (`GET /documents/locations`, ver "Pendiente — prioridad media" arriba y la sección 2), solo falta construir la pantalla.
 7. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
 8. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
 
