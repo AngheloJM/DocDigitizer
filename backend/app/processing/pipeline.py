@@ -69,11 +69,13 @@ def _step(name: str, fn, *args):
     return result
 
 
-def _process_page(image: np.ndarray, page_number: int, perspective_config: dict) -> dict:
+def _process_page(
+    image: np.ndarray, page_number: int, perspective_config: dict, denoise_config: dict
+) -> dict:
     image, perspective_meta = _step(
         f"perspective_p{page_number}", correct_perspective, image, perspective_config
     )
-    image, denoise_meta = _step(f"denoise_p{page_number}", denoise, image)
+    image, denoise_meta = _step(f"denoise_p{page_number}", denoise, image, denoise_config)
     image, binarize_meta = _step(f"binarize_p{page_number}", binarize, image)
     image, deskew_meta = _step(f"deskew_p{page_number}", deskew, image)
 
@@ -94,11 +96,15 @@ def _process_page(image: np.ndarray, page_number: int, perspective_config: dict)
 
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     pages_in_source = _count_pages(file_bytes, file_format)
-    perspective_config = {"enabled": file_format != "pdf"}
+    # los PDFs son renders digitales limpios, nunca fotografiados en angulo
+    # ni con ruido de sensor de camara -- estos pasos solo aplican a fotos reales
+    photo_only_config = {"enabled": file_format != "pdf"}
 
     page_results = []
     for index, page_image in enumerate(_iter_pages(file_bytes, file_format)):
-        page_results.append(_process_page(page_image, index + 1, perspective_config))
+        page_results.append(
+            _process_page(page_image, index + 1, photo_only_config, photo_only_config)
+        )
         del page_image
 
     pdf_bytes = merge_pdf_pages([result["pdf_bytes"] for result in page_results])

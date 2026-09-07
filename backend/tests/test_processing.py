@@ -18,6 +18,16 @@ def test_denoise_reduces_noise_variance():
     assert np.var(denoised.astype(float)) < np.var(noisy.astype(float))
 
 
+def test_denoise_disabled_for_pdf_source():
+    image = np.full((100, 100, 3), 200, dtype=np.uint8)
+
+    result, metadata = denoise(image, {"enabled": False})
+
+    assert metadata["denoised"] is False
+    assert metadata["reason"] == "disabled_for_source"
+    assert result is image
+
+
 def test_binarize_produces_pure_black_and_white():
     gray_gradient = np.tile(np.linspace(0, 255, 100), (100, 1)).astype(np.uint8)
 
