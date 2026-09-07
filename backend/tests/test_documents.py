@@ -259,6 +259,56 @@ async def test_update_document_title(db_session, test_user):
 
 
 @pytest.mark.asyncio
+async def test_update_document_can_explicitly_clear_folder_and_period(db_session, test_user):
+    folder = await create_folder(db_session, test_user.id, FolderCreate(name="Carpeta original"))
+    document = await create_document(
+        db_session,
+        test_user.id,
+        DocumentCreate(
+            title="Acta", folder_id=folder.id, archived_year=2023, archived_month_start=3, archived_month_end=7
+        ),
+    )
+
+    updated = await update_document(
+        db_session,
+        document,
+        DocumentUpdate(folder_id=None, archived_month_end=None),
+    )
+
+    assert updated.folder_id is None
+    assert updated.archived_year == 2023
+    assert updated.archived_month_start == 3
+    assert updated.archived_month_end is None
+
+    await db_session.delete(document)
+    await db_session.delete(folder)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_non_staff_cannot_unassign_document(db_session, test_user):
+    admin = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Admin de Test",
+        role="admin",
+    )
+    db_session.add(admin)
+    await db_session.commit()
+    await db_session.refresh(admin)
+
+    document = await create_document(db_session, admin.id, DocumentCreate(title="Acta"), True)
+    await update_document(db_session, document, DocumentUpdate(assigned_to_id=test_user.id), True)
+
+    with pytest.raises(InvalidAssigneeError):
+        await update_document(db_session, document, DocumentUpdate(assigned_to_id=None), False)
+
+    await db_session.delete(document)
+    await db_session.delete(admin)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_staff_can_assign_document_to_another_user(db_session, test_user):
     admin = User(
         email=f"{uuid.uuid4()}@utepsa-test.edu.bo",

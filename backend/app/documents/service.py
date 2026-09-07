@@ -260,33 +260,40 @@ async def update_document(
     data: DocumentUpdate,
     requester_is_staff: bool = False,
 ) -> Document:
-    if data.folder_id is not None and not await _folder_belongs_to(db, data.folder_id, document.user_id):
-        raise InvalidFolderError("La carpeta no existe o no pertenece al mismo propietario")
-    if data.assigned_to_id is not None:
-        await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
-        document.assigned_to_id = data.assigned_to_id
+    fields = data.model_fields_set
 
-    if data.title is not None:
+    if "folder_id" in fields and data.folder_id is not None:
+        if not await _folder_belongs_to(db, data.folder_id, document.user_id):
+            raise InvalidFolderError("La carpeta no existe o no pertenece al mismo propietario")
+    if "assigned_to_id" in fields:
+        if data.assigned_to_id is not None:
+            await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
+        elif not requester_is_staff:
+            raise InvalidAssigneeError("Solo el staff (admin/super_admin) puede desasignar documentos")
+
+    if "title" in fields and data.title is not None:
         document.title = data.title
-    if data.description is not None:
+    if "description" in fields:
         document.description = data.description
-    if data.doc_type is not None:
+    if "doc_type" in fields:
         document.doc_type = data.doc_type
-    if data.folder_id is not None:
+    if "folder_id" in fields:
         document.folder_id = data.folder_id
-    if data.physical_shelf is not None:
+    if "assigned_to_id" in fields:
+        document.assigned_to_id = data.assigned_to_id
+    if "physical_shelf" in fields:
         document.physical_shelf = data.physical_shelf
-    if data.physical_division is not None:
+    if "physical_division" in fields:
         document.physical_division = data.physical_division
-    if data.physical_column is not None:
+    if "physical_column" in fields:
         document.physical_column = data.physical_column
-    if data.physical_volume is not None:
+    if "physical_volume" in fields:
         document.physical_volume = data.physical_volume
-    if data.archived_year is not None:
+    if "archived_year" in fields:
         document.archived_year = data.archived_year
-    if data.archived_month_start is not None:
+    if "archived_month_start" in fields:
         document.archived_month_start = data.archived_month_start
-    if data.archived_month_end is not None:
+    if "archived_month_end" in fields:
         document.archived_month_end = data.archived_month_end
 
     await db.commit()
