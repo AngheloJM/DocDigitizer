@@ -70,13 +70,17 @@ def _step(name: str, fn, *args):
 
 
 def _process_page(
-    image: np.ndarray, page_number: int, perspective_config: dict, denoise_config: dict
+    image: np.ndarray,
+    page_number: int,
+    perspective_config: dict,
+    denoise_config: dict,
+    binarize_config: dict,
 ) -> dict:
     image, perspective_meta = _step(
         f"perspective_p{page_number}", correct_perspective, image, perspective_config
     )
     image, denoise_meta = _step(f"denoise_p{page_number}", denoise, image, denoise_config)
-    image, binarize_meta = _step(f"binarize_p{page_number}", binarize, image)
+    image, binarize_meta = _step(f"binarize_p{page_number}", binarize, image, binarize_config)
     image, deskew_meta = _step(f"deskew_p{page_number}", deskew, image)
 
     ocr_result = _step(f"ocr_p{page_number}", extract_text, image)
@@ -103,7 +107,9 @@ def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     page_results = []
     for index, page_image in enumerate(_iter_pages(file_bytes, file_format)):
         page_results.append(
-            _process_page(page_image, index + 1, photo_only_config, photo_only_config)
+            _process_page(
+                page_image, index + 1, photo_only_config, photo_only_config, photo_only_config
+            )
         )
         del page_image
 

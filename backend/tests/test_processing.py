@@ -36,6 +36,16 @@ def test_binarize_produces_pure_black_and_white():
     assert set(np.unique(binary).tolist()).issubset({0, 255})
 
 
+def test_binarize_disabled_for_pdf_source():
+    image = np.full((100, 100, 3), 200, dtype=np.uint8)
+
+    result, metadata = binarize(image, {"enabled": False})
+
+    assert metadata["binarized"] is False
+    assert metadata["reason"] == "disabled_for_source"
+    assert result is image
+
+
 def test_deskew_detects_and_corrects_tilted_lines():
     img = np.full((300, 300, 3), 255, dtype=np.uint8)
     cv2.line(img, (30, 100), (270, 100), (0, 0, 0), 3)
