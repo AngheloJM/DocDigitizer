@@ -210,6 +210,43 @@ async def test_list_documents_filters_by_status(db_session, test_user):
 
 
 @pytest.mark.asyncio
+async def test_list_documents_filters_by_month_range(db_session, test_user):
+    doc_march = await create_document(
+        db_session, test_user.id, DocumentCreate(title="Marzo", archived_year=2023, archived_month_start=3)
+    )
+    doc_range = await create_document(
+        db_session,
+        test_user.id,
+        DocumentCreate(title="Mayo a Julio", archived_year=2023, archived_month_start=5, archived_month_end=7),
+    )
+    doc_december = await create_document(
+        db_session, test_user.id, DocumentCreate(title="Diciembre", archived_year=2023, archived_month_start=12)
+    )
+    doc_no_period = await create_document(db_session, test_user.id, DocumentCreate(title="Sin periodo"))
+
+    items, total = await list_documents(db_session, test_user, archived_month_from=4, archived_month_to=8)
+    ids = {item.id for item in items}
+
+    assert total == 1
+    assert doc_range.id in ids
+    assert doc_march.id not in ids
+    assert doc_december.id not in ids
+    assert doc_no_period.id not in ids
+
+    only_from = await list_documents(db_session, test_user, archived_month_from=6)
+    only_from_ids = {item.id for item in only_from[0]}
+    assert doc_range.id in only_from_ids
+    assert doc_december.id in only_from_ids
+    assert doc_march.id not in only_from_ids
+
+    await db_session.delete(doc_march)
+    await db_session.delete(doc_range)
+    await db_session.delete(doc_december)
+    await db_session.delete(doc_no_period)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_update_document_title(db_session, test_user):
     document = await create_document(db_session, test_user.id, DocumentCreate(title="Original"))
 

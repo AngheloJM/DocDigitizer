@@ -160,7 +160,7 @@ Todos estos campos (`physical_*` y `archived_*`) se pueden pasar en la creación
 
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=&archived_month_from=&archived_month_to=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
@@ -170,6 +170,8 @@ DELETE /documents/{id}                                                  → 204 
 ```
 
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
+
+**Filtro por rango de meses (nuevo, 07/09/2026):** `?archived_month_from=` y `?archived_month_to=` (ambos 1-12, ambos opcionales, se pueden usar solo, o los dos juntos). Filtra por el período archivado del documento (`archived_month_start`/`archived_month_end`), sin importar el año — combínalo con `?archived_year=` si además querés acotar a un año puntual. Ej: `?archived_month_from=3&archived_month_to=7` trae los documentos cuyo período se solapa con marzo-julio (de cualquier año). Los documentos sin `archived_month_start` (sin período cargado) quedan afuera de este filtro.
 
 **Visibilidad y asignación (nuevo, 29/08/2026):**
 - `admin`/`super_admin` ven documentos y carpetas de **todos** los usuarios por defecto en `GET /documents` y `GET /folders` (antes solo veían lo propio salvo que pasaran `?owner_id=`). `?owner_id=<id>` sigue funcionando para acotar a un usuario puntual.
