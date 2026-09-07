@@ -154,6 +154,8 @@ async def list_documents(
     doc_type: str | None = None,
     physical_shelf: str | None = None,
     archived_year: int | None = None,
+    archived_month_from: int | None = None,
+    archived_month_to: int | None = None,
     owner_id: uuid.UUID | None = None,
     assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
@@ -189,6 +191,15 @@ async def list_documents(
     if archived_year is not None:
         query = query.where(Document.archived_year == archived_year)
         count_query = count_query.where(Document.archived_year == archived_year)
+    if archived_month_from is not None or archived_month_to is not None:
+        effective_end = func.coalesce(Document.archived_month_end, Document.archived_month_start)
+        month_range_filter = Document.archived_month_start.isnot(None)
+        if archived_month_from is not None:
+            month_range_filter = month_range_filter & (effective_end >= archived_month_from)
+        if archived_month_to is not None:
+            month_range_filter = month_range_filter & (Document.archived_month_start <= archived_month_to)
+        query = query.where(month_range_filter)
+        count_query = count_query.where(month_range_filter)
 
     query = query.order_by(Document.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
 

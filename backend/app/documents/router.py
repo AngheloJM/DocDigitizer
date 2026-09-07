@@ -1,7 +1,7 @@
 import math
 import uuid
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 
 from app.auth.permissions import is_staff
 from app.dependencies import CurrentUser, DbSession
@@ -138,6 +138,8 @@ async def list_documents(
     doc_type: str | None = None,
     physical_shelf: str | None = None,
     archived_year: int | None = None,
+    archived_month_from: int | None = Query(default=None, ge=1, le=12),
+    archived_month_to: int | None = Query(default=None, ge=1, le=12),
     owner_id: uuid.UUID | None = None,
     assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
@@ -151,6 +153,8 @@ async def list_documents(
         doc_type,
         physical_shelf,
         archived_year,
+        archived_month_from,
+        archived_month_to,
         owner_id,
         assigned_to_id,
         page,
