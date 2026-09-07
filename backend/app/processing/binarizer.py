@@ -5,6 +5,10 @@ from skimage.filters import threshold_sauvola
 
 def binarize(image: np.ndarray, config: dict | None = None) -> tuple[np.ndarray, dict]:
     config = config or {}
+
+    if not config.get("enabled", True):
+        return image, {"binarized": False, "reason": "disabled_for_source"}
+
     window_size = config.get("window_size", 25)
     k = config.get("k", 0.2)
 
@@ -13,4 +17,4 @@ def binarize(image: np.ndarray, config: dict | None = None) -> tuple[np.ndarray,
     threshold = threshold_sauvola(gray, window_size=window_size, k=k)
     binary = (gray > threshold).astype(np.uint8) * 255
 
-    return binary, {"window_size": window_size, "k": k}
+    return binary, {"binarized": True, "window_size": window_size, "k": k}
