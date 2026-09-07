@@ -134,6 +134,21 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
+### Propuesta de rediseño (nuevo, 07/09/2026): "carpetas" basadas en ubicación física
+
+Las carpetas de arriba son un árbol **manual** (lo arma el usuario a mano) y hoy en producción **nadie las usa de verdad** — no reflejan la ubicación física real del archivo (estante/división/columna/tomo), que ya tiene cada documento. Discutimos con el equipo la idea de que la navegación de "carpetas" en realidad sea el **gabinete físico real** (estante → división → columna → tomo), en vez de un árbol arbitrario.
+
+Se agregó un endpoint nuevo para esto, **sin tocar ni reemplazar** el módulo de `folders` de arriba (para no romper lo que ya está construido) — la decisión de si `/carpetas` en la UI pasa a usar esto en vez de (o adicionalmente a) las carpetas manuales queda del lado del frontend:
+
+```
+GET /documents/locations?physical_shelf=&physical_division=&physical_column=
+→ 200 [{ value, document_count }, ...]
+```
+
+Sin parámetros, devuelve los **estantes** distintos que existen (con cuántos documentos tiene cada uno). Pasando `?physical_shelf=E-01` devuelve las **divisiones** dentro de ese estante. Pasando `?physical_shelf=E-01&physical_division=D-02` devuelve las **columnas**, y agregando `physical_column` devuelve los **tomos**. Es decir, se usa como un drill-down: en cada nivel, pasás todos los filtros de los niveles ya elegidos, y te devuelve los valores distintos del siguiente nivel.
+
+Documentos sin ese campo cargado no aparecen en el árbol (no tienen ubicación física). Respeta las mismas reglas de visibilidad que `GET /documents` (staff ve todo, el resto solo lo propio o lo asignado). Una vez que el usuario llega al último nivel (tomo), se puede usar `GET /documents?physical_shelf=&physical_division=&physical_column=` para listar los documentos de esa combinación exacta.
+
 ## 3. Documentos
 
 Ya funciona el flujo completo: subir el archivo, procesarlo (OCR + restauración de imagen + PDF/A) y descargarlo. Cuando subes un archivo, el documento pasa automáticamente por `pending` → `processing` → `completed` (unos segundos, según el tamaño). Puedes hacer polling sobre `/documents/{id}/status` para saber cuándo terminó.
@@ -171,7 +186,7 @@ Todos estos campos (`physical_*` y `archived_*`) se pueden pasar en la creación
 
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&archived_year=&archived_month_from=&archived_month_to=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&physical_division=&physical_column=&physical_volume=&archived_year=&archived_month_from=&archived_month_to=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
 GET    /documents/{id}/status                                           → 200 { status, processed_at }
 GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)

@@ -14,6 +14,7 @@ from app.documents.schemas import (
     DocumentStatusResponse,
     DocumentUpdate,
     DocumentUploadResponse,
+    LocationNode,
 )
 from app.documents.service import (
     DocumentAlreadyHasFileError,
@@ -154,6 +155,9 @@ async def list_documents(
     status_filter: str | None = None,
     doc_type: str | None = None,
     physical_shelf: str | None = None,
+    physical_division: str | None = None,
+    physical_column: str | None = None,
+    physical_volume: str | None = None,
     archived_year: int | None = None,
     archived_month_from: int | None = Query(default=None, ge=1, le=12),
     archived_month_to: int | None = Query(default=None, ge=1, le=12),
@@ -169,6 +173,9 @@ async def list_documents(
         status_filter,
         doc_type,
         physical_shelf,
+        physical_division,
+        physical_column,
+        physical_volume,
         archived_year,
         archived_month_from,
         archived_month_to,
@@ -179,6 +186,19 @@ async def list_documents(
     )
     pages = math.ceil(total / per_page) if total else 0
     return DocumentListResponse(items=items, total=total, page=page, pages=pages)
+
+
+@router.get("/locations", response_model=list[LocationNode])
+async def get_location_tree(
+    db: DbSession,
+    current_user: CurrentUser,
+    physical_shelf: str | None = None,
+    physical_division: str | None = None,
+    physical_column: str | None = None,
+):
+    return await service.get_location_tree(
+        db, current_user, physical_shelf, physical_division, physical_column
+    )
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
