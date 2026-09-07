@@ -173,3 +173,21 @@ async def test_upload_gets_rate_limited_after_repeated_attempts(client, student_
     assert response.status_code == 429
 
     await redis.delete(key)
+
+
+@pytest.mark.asyncio
+async def test_locations_route_does_not_collide_with_document_id_route(client, student_token):
+    headers = {"Authorization": f"Bearer {student_token}"}
+
+    create = await client.post(
+        "/documents", headers=headers, json={"title": "Con ubicacion", "physical_shelf": "E-07"}
+    )
+    doc_id = create.json()["id"]
+
+    response = await client.get("/documents/locations", headers=headers)
+
+    assert response.status_code == 200
+    values = {node["value"] for node in response.json()}
+    assert "E-07" in values
+
+    await client.delete(f"/documents/{doc_id}", headers=headers)

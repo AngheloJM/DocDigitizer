@@ -153,6 +153,9 @@ async def list_documents(
     status_filter: str | None = None,
     doc_type: str | None = None,
     physical_shelf: str | None = None,
+    physical_division: str | None = None,
+    physical_column: str | None = None,
+    physical_volume: str | None = None,
     archived_year: int | None = None,
     archived_month_from: int | None = None,
     archived_month_to: int | None = None,
@@ -188,6 +191,15 @@ async def list_documents(
     if physical_shelf is not None:
         query = query.where(Document.physical_shelf == physical_shelf)
         count_query = count_query.where(Document.physical_shelf == physical_shelf)
+    if physical_division is not None:
+        query = query.where(Document.physical_division == physical_division)
+        count_query = count_query.where(Document.physical_division == physical_division)
+    if physical_column is not None:
+        query = query.where(Document.physical_column == physical_column)
+        count_query = count_query.where(Document.physical_column == physical_column)
+    if physical_volume is not None:
+        query = query.where(Document.physical_volume == physical_volume)
+        count_query = count_query.where(Document.physical_volume == physical_volume)
     if archived_year is not None:
         query = query.where(Document.archived_year == archived_year)
         count_query = count_query.where(Document.archived_year == archived_year)
@@ -206,6 +218,43 @@ async def list_documents(
     total = (await db.execute(count_query)).scalar_one()
     items = list((await db.execute(query)).scalars().all())
     return items, total
+
+
+_LOCATION_LEVELS = [
+    Document.physical_shelf,
+    Document.physical_division,
+    Document.physical_column,
+    Document.physical_volume,
+]
+
+
+async def get_location_tree(
+    db: AsyncSession,
+    requesting_user: User,
+    physical_shelf: str | None = None,
+    physical_division: str | None = None,
+    physical_column: str | None = None,
+) -> list[dict]:
+    given = [physical_shelf, physical_division, physical_column]
+    depth = next((index for index, value in enumerate(given) if value is None), len(given))
+    group_column = _LOCATION_LEVELS[depth]
+
+    query = select(group_column, func.count()).where(group_column.isnot(None))
+
+    if not is_staff(requesting_user):
+        query = query.where(_owned_or_assigned(requesting_user))
+
+    if physical_shelf is not None:
+        query = query.where(Document.physical_shelf == physical_shelf)
+    if physical_division is not None:
+        query = query.where(Document.physical_division == physical_division)
+    if physical_column is not None:
+        query = query.where(Document.physical_column == physical_column)
+
+    query = query.group_by(group_column).order_by(group_column)
+
+    result = await db.execute(query)
+    return [{"value": value, "document_count": count} for value, count in result.all()]
 
 
 async def create_document(

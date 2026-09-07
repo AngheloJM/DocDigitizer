@@ -13,6 +13,7 @@ from app.documents.service import (
     InvalidFolderError,
     create_document,
     get_document,
+    get_location_tree,
     list_documents,
     log_audit_action,
     update_document,
@@ -383,6 +384,70 @@ async def test_assigned_user_can_access_document_without_owning_it(db_session, t
 
     await db_session.delete(document)
     await db_session.delete(admin)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_location_tree_drills_down_by_level(db_session, test_user):
+    doc_a = await create_document(
+        db_session,
+        test_user.id,
+        DocumentCreate(title="A", physical_shelf="E-01", physical_division="D-01"),
+    )
+    doc_b = await create_document(
+        db_session,
+        test_user.id,
+        DocumentCreate(title="B", physical_shelf="E-01", physical_division="D-02"),
+    )
+    doc_c = await create_document(
+        db_session, test_user.id, DocumentCreate(title="C", physical_shelf="E-02")
+    )
+    doc_no_location = await create_document(db_session, test_user.id, DocumentCreate(title="D"))
+
+    shelves = await get_location_tree(db_session, test_user)
+    shelf_values = {node["value"]: node["document_count"] for node in shelves}
+    assert shelf_values == {"E-01": 2, "E-02": 1}
+
+    divisions = await get_location_tree(db_session, test_user, physical_shelf="E-01")
+    division_values = {node["value"]: node["document_count"] for node in divisions}
+    assert division_values == {"D-01": 1, "D-02": 1}
+
+    empty = await get_location_tree(db_session, test_user, physical_shelf="E-02")
+    assert empty == []
+
+    await db_session.delete(doc_a)
+    await db_session.delete(doc_b)
+    await db_session.delete(doc_c)
+    await db_session.delete(doc_no_location)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_get_location_tree_respects_visibility_rules(db_session, test_user):
+    other_student = User(
+        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
+        password_hash=hash_password("irrelevante123"),
+        full_name="Otro Estudiante",
+    )
+    db_session.add(other_student)
+    await db_session.commit()
+    await db_session.refresh(other_student)
+
+    own_document = await create_document(
+        db_session, test_user.id, DocumentCreate(title="Propio", physical_shelf="E-01")
+    )
+    other_document = await create_document(
+        db_session, other_student.id, DocumentCreate(title="Ajeno", physical_shelf="E-09")
+    )
+
+    own_view = await get_location_tree(db_session, test_user)
+    own_values = {node["value"] for node in own_view}
+    assert "E-01" in own_values
+    assert "E-09" not in own_values
+
+    await db_session.delete(own_document)
+    await db_session.delete(other_document)
+    await db_session.delete(other_student)
     await db_session.commit()
 
 

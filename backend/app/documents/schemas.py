@@ -115,3 +115,8 @@ class SearchResponse(BaseModel):
     total: int
     page: int
     pages: int
+
+
+class LocationNode(BaseModel):
+    value: str
+    document_count: int
