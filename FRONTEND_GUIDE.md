@@ -86,7 +86,16 @@ POST /auth/refresh
 
 → 200 { access_token, refresh_token, token_type, expires_in }
 ```
-Importante: cada llamada a `/refresh` invalida el `refresh_token` usado y entrega uno nuevo. Guarda siempre el par más reciente (access + refresh), no solo el access.
+Importante: cada llamada a `/refresh` invalida el `refresh_token` usado y entrega uno nuevo. Guarda siempre el par más reciente (access + refresh), no solo el access. Límite: 30 intentos cada 15 minutos por IP (`429` si se supera) — no debería afectar el uso normal.
+
+**Cerrar sesión (nuevo, 07/09/2026)**
+```
+POST /auth/logout
+{ "refresh_token": "..." }
+
+→ 204
+```
+Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). El `access_token` ya emitido sigue siendo válido hasta que expire solo (máximo 15 minutos) — no hay forma de invalidar un access_token antes de su vencimiento natural, es el trade-off de usar JWT sin estado. El proxy/`api/auth/logout` del frontend debería llamar a este endpoint con el `refresh_token` guardado **antes** de borrar las cookies locales, no solo borrar cookies como hace hoy.
 
 **Usuario actual**
 ```
@@ -103,7 +112,7 @@ PATCH /auth/users/{id}   { role?, is_active? }     → 200
 ```
 Un `admin` solo ve/gestiona `student`; un `super_admin` ve/gestiona `admin` y `student` (nadie ve otros `super_admin` por API). Desactivar a alguien (`is_active: false`) le bloquea el login inmediatamente (403) y también invalida cualquier sesión que ya tuviera abierta.
 
-**Crear usuario nuevo** (solo `admin`/`super_admin`, no implementado en la UI todavía — ver "Pendiente — prioridad media"):
+**Crear usuario nuevo** (solo `admin`/`super_admin`):
 ```
 POST /auth/users   { email, password, full_name, role }   → 201
 ```
@@ -129,7 +138,7 @@ DELETE /folders/{id}                                                    → 204
 
 Ya funciona el flujo completo: subir el archivo, procesarlo (OCR + restauración de imagen + PDF/A) y descargarlo. Cuando subes un archivo, el documento pasa automáticamente por `pending` → `processing` → `completed` (unos segundos, según el tamaño). Puedes hacer polling sobre `/documents/{id}/status` para saber cuándo terminó.
 
-Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB.
+Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB. Límite de subidas: 20 por hora por usuario (`429` si se supera, tanto en `/documents/upload` como en `/documents/{id}/upload`) — pensado para el uso normal del personal del archivo, no debería afectar a nadie salvo un caso de abuso.
 
 ✅ Si el archivo es un PDF de varias páginas, se procesan **todas** — el PDF/A generado y el texto extraído cubren el documento completo, no solo la primera página.
 
@@ -195,9 +204,9 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
-Pendientes conocidos del backend (no bloquean el desarrollo del frontend, pero ten presente que no existen todavía):
-- Revocación explícita de refresh tokens en logout (hoy expiran solos a los 7 días, no hay invalidación anticipada del lado del servidor más allá de la rotación de un solo uso).
-- Rate limiting solo existe en `/auth/login`; el resto de endpoints no lo tiene.
+Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
+- `POST /auth/logout` ya existe (revoca el refresh token) — falta que el frontend lo llame antes de borrar las cookies (ver sección 1).
+- Rate limiting: además de login (5/15min), ahora también hay en `/auth/refresh` (30/15min por IP) y en subidas de documentos (20/hora por usuario). El resto de endpoints todavía no tiene límite.
 
 ## 6. Errores comunes a manejar en el frontend
 
@@ -207,4 +216,4 @@ Pendientes conocidos del backend (no bloquean el desarrollo del frontend, pero t
 | 403 | El usuario no tiene permiso para esa acción (ej. `student` intentando crear un usuario) |
 | 404 | El recurso no existe o no te pertenece (no se distingue, por seguridad) |
 | 422 | Body inválido (faltó un campo, formato incorrecto) — el detalle viene en `detail` |
-| 429 | Rate limit de login |
+| 429 | Rate limit — login (5/15min), refresh (30/15min por IP), o subida de documentos (20/hora por usuario). El mensaje viene en `detail` |

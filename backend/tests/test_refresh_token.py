@@ -3,7 +3,12 @@ import uuid
 import pytest
 
 from app.auth.models import User
-from app.auth.service import create_refresh_token, hash_password, rotate_refresh_token
+from app.auth.service import (
+    create_refresh_token,
+    hash_password,
+    revoke_refresh_token,
+    rotate_refresh_token,
+)
 from app.database import SessionLocal
 
 
@@ -52,3 +57,18 @@ async def test_unknown_refresh_token_returns_none():
     result = await rotate_refresh_token("token-que-no-existe")
 
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_revoke_refresh_token_invalidates_it(test_user):
+    token = await create_refresh_token(test_user.id)
+
+    await revoke_refresh_token(token)
+    result = await rotate_refresh_token(token)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_revoke_refresh_token_is_idempotent_for_unknown_token():
+    await revoke_refresh_token("token-que-no-existe")

@@ -166,3 +166,44 @@ async def test_super_admin_can_create_admin_via_http(client, db_session):
     await db_session.delete(created)
     await db_session.delete(super_admin)
     await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_logout_revokes_refresh_token(client, db_session):
+    user = await _make_user(db_session, "student", password="clave-real-123")
+
+    login = await client.post(
+        "/auth/login", json={"email": user.email, "password": "clave-real-123"}
+    )
+    refresh_token = login.json()["refresh_token"]
+
+    logout = await client.post("/auth/logout", json={"refresh_token": refresh_token})
+    assert logout.status_code == 204
+
+    refresh_attempt = await client.post("/auth/refresh", json={"refresh_token": refresh_token})
+    assert refresh_attempt.status_code == 401
+
+    await db_session.delete(user)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_logout_with_unknown_token_does_not_error(client):
+    response = await client.post("/auth/logout", json={"refresh_token": "token-que-no-existe"})
+
+    assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_refresh_gets_rate_limited_after_repeated_attempts(client):
+    statuses = []
+    for _ in range(40):
+        response = await client.post(
+            "/auth/refresh", json={"refresh_token": "token-que-no-existe"}
+        )
+        statuses.append(response.status_code)
+        if response.status_code == 429:
+            break
+
+    assert 429 in statuses
+    assert statuses.count(401) >= 1
