@@ -196,14 +196,26 @@ async def test_logout_with_unknown_token_does_not_error(client):
 
 @pytest.mark.asyncio
 async def test_refresh_gets_rate_limited_after_repeated_attempts(client):
-    statuses = []
-    for _ in range(40):
-        response = await client.post(
+    from app.auth.router import REFRESH_MAX_ATTEMPTS
+    from app.redis_client import get_redis_client
+
+    redis = get_redis_client()
+
+    async def _clear_refresh_rate_limit_keys():
+        async for key in redis.scan_iter(match="refresh_rate:*"):
+            await redis.delete(key)
+
+    await _clear_refresh_rate_limit_keys()
+    try:
+        for _ in range(REFRESH_MAX_ATTEMPTS):
+            response = await client.post(
+                "/auth/refresh", json={"refresh_token": "token-que-no-existe"}
+            )
+            assert response.status_code == 401
+
+        blocked = await client.post(
             "/auth/refresh", json={"refresh_token": "token-que-no-existe"}
         )
-        statuses.append(response.status_code)
-        if response.status_code == 429:
-            break
-
-    assert 429 in statuses
-    assert statuses.count(401) >= 1
+        assert blocked.status_code == 429
+    finally:
+        await _clear_refresh_rate_limit_keys()
