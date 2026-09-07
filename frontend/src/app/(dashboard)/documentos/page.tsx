@@ -2,10 +2,11 @@
 
 import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagina } from "@/components/ui/paginacion";
-import { useAuth } from "@/components/providers/AuthProvider";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import {
@@ -43,6 +44,7 @@ function DocumentosContent() {
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
+  const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
 
@@ -164,6 +166,22 @@ function DocumentosContent() {
       setScanBusy(false);
       setScanDocId(null);
     }
+  }
+
+  function canEditDocument(document: DocumentItem) {
+    if (!user) return false;
+    return (
+      isStaff(user.role) ||
+      document.user_id === user.id ||
+      document.assigned_to_id === user.id
+    );
+  }
+
+  function handleDocumentSaved(updated: DocumentItem) {
+    setItems((current) =>
+      current.map((item) => (item.id === updated.id ? updated : item)),
+    );
+    setEditingDocument(null);
   }
 
   async function onAssign(docId: string, assignedToId: string) {
@@ -369,6 +387,7 @@ function DocumentosContent() {
                 {items.map((doc) => {
                   const assignedToMe = Boolean(user && doc.assigned_to_id === user.id);
                   const isOwn = Boolean(user && doc.user_id === user.id);
+
                   return (
                     <tr
                       key={doc.id}
@@ -410,7 +429,9 @@ function DocumentosContent() {
                             }}
                             className="w-full max-w-[180px] border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           >
-                            <option value="">{doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}</option>
+                            <option value="">
+                              {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
+                            </option>
                             {doc.assigned_to_id && !usersById.has(doc.assigned_to_id) && (
                               <option value={doc.assigned_to_id}>{assigneeLabel(doc)}</option>
                             )}
@@ -421,7 +442,9 @@ function DocumentosContent() {
                             ))}
                           </select>
                         ) : (
-                          <span className="text-xs text-on-surface-variant">{assigneeLabel(doc)}</span>
+                          <span className="text-xs text-on-surface-variant">
+                            {assigneeLabel(doc)}
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4">
@@ -429,6 +452,17 @@ function DocumentosContent() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1 justify-end">
+                          {canEditDocument(doc) && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingDocument(doc)}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              title="Editar documento"
+                              aria-label={`Editar ${doc.title}`}
+                            >
+                              <Icon name="edit" className="text-lg" />
+                            </button>
+                          )}
                           {needsScanUpload(doc.status) && (
                             <button
                               type="button"
@@ -472,6 +506,13 @@ function DocumentosContent() {
           </div>
         )}
       </div>
+
+      <DocumentEditModal
+        open={editingDocument !== null}
+        document={editingDocument}
+        onClose={() => setEditingDocument(null)}
+        onSaved={handleDocumentSaved}
+      />
     </>
   );
 }
