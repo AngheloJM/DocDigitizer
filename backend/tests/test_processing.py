@@ -68,6 +68,16 @@ def test_deskew_skips_already_straight_image():
     assert metadata["deskewed"] is False
 
 
+def test_deskew_disabled_for_pdf_source():
+    image = np.full((100, 100, 3), 200, dtype=np.uint8)
+
+    result, metadata = deskew(image, {"enabled": False})
+
+    assert metadata["deskewed"] is False
+    assert metadata["reason"] == "disabled_for_source"
+    assert result is image
+
+
 def test_correct_perspective_skips_image_without_quadrilateral():
     flat = np.full((100, 100, 3), 255, dtype=np.uint8)
 
