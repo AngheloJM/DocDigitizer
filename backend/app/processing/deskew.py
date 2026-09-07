@@ -27,6 +27,10 @@ def _detect_skew_angle(image: np.ndarray) -> float | None:
 
 def deskew(image: np.ndarray, config: dict | None = None) -> tuple[np.ndarray, dict]:
     config = config or {}
+
+    if not config.get("enabled", True):
+        return image, {"deskewed": False, "reason": "disabled_for_source"}
+
     min_angle_threshold = config.get("min_angle_threshold", 0.5)
 
     angle = _detect_skew_angle(image)
