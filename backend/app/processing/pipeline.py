@@ -1,6 +1,7 @@
 import io
 import logging
 import time
+from collections.abc import Iterator
 
 import cv2
 import numpy as np
@@ -29,29 +30,36 @@ def _resize_if_needed(pil_image: Image.Image) -> Image.Image:
     return pil_image.resize(new_size, Image.LANCZOS)
 
 
-def _pdf_pages_to_pil_images(pdf_bytes: bytes) -> list[Image.Image]:
-    images = []
+def _pil_to_cv2(pil_image: Image.Image) -> np.ndarray:
+    resized = _resize_if_needed(pil_image.convert("RGB"))
+    return cv2.cvtColor(np.array(resized), cv2.COLOR_RGB2BGR)
+
+
+def _iter_pdf_pages(pdf_bytes: bytes) -> Iterator[np.ndarray]:
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as pdf:
         for page in pdf:
             pixmap = page.get_pixmap(dpi=PDF_RENDER_DPI)
             mode = "RGBA" if pixmap.alpha else "RGB"
             pil_image = Image.frombytes(mode, (pixmap.width, pixmap.height), pixmap.samples)
-            images.append(pil_image.convert("RGB"))
-    return images
+            yield _pil_to_cv2(pil_image)
+            del pixmap, pil_image
 
 
-def _load_pages(file_bytes: bytes, file_format: str) -> list[np.ndarray]:
+def _iter_pages(file_bytes: bytes, file_format: str) -> Iterator[np.ndarray]:
     if file_format == "pdf":
-        pil_images = _pdf_pages_to_pil_images(file_bytes)
-    else:
-        with Image.open(io.BytesIO(file_bytes)) as opened:
-            pil_images = [ImageOps.exif_transpose(opened).convert("RGB")]
+        yield from _iter_pdf_pages(file_bytes)
+        return
 
-    pages = []
-    for pil_image in pil_images:
-        resized = _resize_if_needed(pil_image)
-        pages.append(cv2.cvtColor(np.array(resized), cv2.COLOR_RGB2BGR))
-    return pages
+    with Image.open(io.BytesIO(file_bytes)) as opened:
+        pil_image = ImageOps.exif_transpose(opened)
+        yield _pil_to_cv2(pil_image)
+
+
+def _count_pages(file_bytes: bytes, file_format: str) -> int:
+    if file_format != "pdf":
+        return 1
+    with pymupdf.open(stream=file_bytes, filetype="pdf") as pdf:
+        return pdf.page_count
 
 
 def _step(name: str, fn, *args):
@@ -85,13 +93,13 @@ def _process_page(image: np.ndarray, page_number: int, perspective_config: dict)
 
 
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
-    pages = _load_pages(file_bytes, file_format)
+    pages_in_source = _count_pages(file_bytes, file_format)
     perspective_config = {"enabled": file_format != "pdf"}
 
-    page_results = [
-        _process_page(page_image, index + 1, perspective_config)
-        for index, page_image in enumerate(pages)
-    ]
+    page_results = []
+    for index, page_image in enumerate(_iter_pages(file_bytes, file_format)):
+        page_results.append(_process_page(page_image, index + 1, perspective_config))
+        del page_image
 
     pdf_bytes = merge_pdf_pages([result["pdf_bytes"] for result in page_results])
 
@@ -112,8 +120,8 @@ def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
         "ocr_result": ocr_result,
         "pipeline_metadata": {
             "source_format": file_format,
-            "pages_in_source": len(pages),
-            "pages_processed": len(pages),
+            "pages_in_source": pages_in_source,
+            "pages_processed": len(page_results),
             "pages": [result["metadata"] for result in page_results],
         },
     }
