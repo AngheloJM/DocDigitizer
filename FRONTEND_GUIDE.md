@@ -2,26 +2,28 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-## Estado actual (2026-09-03)
+## Estado actual (2026-09-07)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
 - **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
 - **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
-- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar.
+- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas** y **cambiar de rol** (solo `super_admin` ve el botón de cambiar rol).
 - Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
 
 **⏳ Pendiente — prioridad media:**
 
-1. **Editar documento** (`PATCH /documents/{id}`) — no hay UI para corregir título, tipo, carpeta o ubicación física de un documento ya creado (sí se puede editar la asignación, ver arriba).
-2. **Crear usuarios** (`POST /auth/users`) y **cambiar de rol** (`PATCH /auth/users/{id}` con `role`) — `/usuarios` solo permite activar/desactivar, no crear cuentas nuevas ni cambiar el rol de una existente.
-3. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó hace unos días) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
-4. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
+1. **Reprocesar documento** (`POST /documents/{id}/reprocess`) — útil para cuando mejoramos el pipeline de OCR (como pasó hace unos días) y se quiere reprocesar un documento ya subido sin tener que volver a escanearlo.
+2. **Filtros avanzados de búsqueda** — `/busqueda` solo usa `q`; el backend también soporta `doc_type`, `date_from`, `date_to`, `folder_id`, `owner_id`.
+3. **Filtro por rango de meses** en `/documentos` — el backend ya soporta `?archived_month_from=&archived_month_to=` (ver sección 3), falta el selector en la UI (hoy solo hay filtro por año exacto).
 
 Ninguno de estos bloquea el uso básico del sistema.
+
+> ⚠️ Nota para quien construyó `DocumentEditModal`: detectamos y corregimos (07/09/2026) un bug del backend que afectaba directamente a este modal — `PATCH /documents/{id}` ignoraba en silencio cualquier campo enviado explícitamente como `null` (por ejemplo, para quitarle la carpeta a un documento, o borrar el mes final del período). Ya está corregido en `main`; si probaste "borrar carpeta" o "borrar período" antes del 07/09 y no funcionó, ya debería andar bien ahora.
 
 ## Ideas de diseño de referencia (31/08/2026)
 
