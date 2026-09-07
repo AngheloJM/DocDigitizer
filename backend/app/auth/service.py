@@ -81,6 +81,11 @@ async def create_refresh_token(user_id: uuid.UUID) -> str:
     return token
 
 
+async def revoke_refresh_token(token: str) -> None:
+    redis = get_redis_client()
+    await redis.delete(_refresh_token_key(token))
+
+
 async def rotate_refresh_token(token: str) -> uuid.UUID | None:
     redis = get_redis_client()
     key = _refresh_token_key(token)

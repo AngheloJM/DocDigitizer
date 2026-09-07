@@ -23,10 +23,23 @@ from app.documents.service import (
     NoDownloadableFileError,
     NoOriginalFileError,
 )
+from app.rate_limit import RateLimitExceededError, enforce_rate_limit
 from app.worker.tasks import process_document
 from app.worker.wake import wake_worker
 
 router = APIRouter()
+
+UPLOAD_MAX_ATTEMPTS = 20
+UPLOAD_WINDOW_SECONDS = 3600
+
+
+async def _enforce_upload_rate_limit(user_id: uuid.UUID) -> None:
+    try:
+        await enforce_rate_limit(
+            f"upload_rate:{user_id}", UPLOAD_MAX_ATTEMPTS, UPLOAD_WINDOW_SECONDS
+        )
+    except RateLimitExceededError as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
 
 
 def _client_ip(request: Request) -> str | None:
@@ -64,6 +77,8 @@ async def upload_document(
     doc_type: str | None = Form(None),
     folder_id: uuid.UUID | None = Form(None),
 ):
+    await _enforce_upload_rate_limit(current_user.id)
+
     file_bytes = await file.read()
     data = DocumentCreate(title=title, description=description, doc_type=doc_type, folder_id=folder_id)
 
@@ -100,6 +115,8 @@ async def upload_document_file(
     request: Request,
     file: UploadFile = File(...),
 ):
+    await _enforce_upload_rate_limit(current_user.id)
+
     document = await service.get_document(db, document_id, current_user)
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")

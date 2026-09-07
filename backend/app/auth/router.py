@@ -1,7 +1,7 @@
 import math
 import uuid
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.auth import service
 from app.auth.permissions import is_staff
@@ -17,6 +17,14 @@ from app.auth.schemas import (
 from app.auth.service import InvalidEmailDomainError, InvalidRoleAssignmentError, TooManyLoginAttemptsError
 from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession
+from app.rate_limit import RateLimitExceededError, enforce_rate_limit
+
+REFRESH_MAX_ATTEMPTS = 30
+REFRESH_WINDOW_SECONDS = 900
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 router = APIRouter()
 settings = get_settings()
@@ -127,7 +135,14 @@ async def login(data: LoginRequest, db: DbSession):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh(data: RefreshRequest, db: DbSession):
+async def refresh(data: RefreshRequest, db: DbSession, request: Request):
+    try:
+        await enforce_rate_limit(
+            f"refresh_rate:{_client_ip(request)}", REFRESH_MAX_ATTEMPTS, REFRESH_WINDOW_SECONDS
+        )
+    except RateLimitExceededError as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
+
     user_id = await service.rotate_refresh_token(data.refresh_token)
     if user_id is None:
         raise HTTPException(
@@ -149,6 +164,11 @@ async def refresh(data: RefreshRequest, db: DbSession):
         refresh_token=new_refresh_token,
         expires_in=settings.jwt_expire_minutes * 60,
     )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(data: RefreshRequest):
+    await service.revoke_refresh_token(data.refresh_token)
 
 
 @router.get("/me", response_model=UserResponse)

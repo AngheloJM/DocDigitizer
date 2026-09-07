@@ -150,3 +150,26 @@ async def test_documents_endpoint_requires_authentication(client):
     response = await client.get("/documents")
 
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_upload_gets_rate_limited_after_repeated_attempts(client, student_token):
+    from app.auth.service import decode_access_token
+    from app.redis_client import get_redis_client
+
+    user_id = decode_access_token(student_token)
+    redis = get_redis_client()
+    key = f"upload_rate:{user_id}"
+    await redis.set(key, 20, ex=3600)
+
+    headers = {"Authorization": f"Bearer {student_token}"}
+    response = await client.post(
+        "/documents/upload",
+        headers=headers,
+        data={"title": "Deberia ser rechazado"},
+        files={"file": ("foto.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 429
+
+    await redis.delete(key)
