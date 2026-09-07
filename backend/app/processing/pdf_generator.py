@@ -44,6 +44,8 @@ def generate_pdf_from_image(image: np.ndarray, dpi: int = 300) -> bytes:
                 str(dpi),
                 "--output-type",
                 "pdfa",
+                "--jobs",
+                "1",
                 str(input_path),
                 str(output_path),
             ],
