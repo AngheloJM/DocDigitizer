@@ -3,6 +3,7 @@ import type {
   DocumentItem,
   DocumentUpdateInput,
   Folder,
+  LocationNode,
   Paginated,
   SearchResult,
   User,
@@ -16,8 +17,17 @@ export type DocumentListFilters = {
   folderId?: string | null;
   statusFilter?: string | null;
   physicalShelf?: string | null;
+  physicalDivision?: string | null;
+  physicalColumn?: string | null;
+  physicalVolume?: string | null;
   archivedYear?: number | null;
   assignedToId?: string | null;
+};
+
+export type LocationFilters = {
+  physicalShelf?: string | null;
+  physicalDivision?: string | null;
+  physicalColumn?: string | null;
 };
 
 export const backend = {
@@ -54,9 +64,20 @@ export const backend = {
       if (filters.folderId) params.set("folder_id", filters.folderId);
       if (filters.statusFilter) params.set("status_filter", filters.statusFilter);
       if (filters.physicalShelf) params.set("physical_shelf", filters.physicalShelf);
+      if (filters.physicalDivision) params.set("physical_division", filters.physicalDivision);
+      if (filters.physicalColumn) params.set("physical_column", filters.physicalColumn);
+      if (filters.physicalVolume) params.set("physical_volume", filters.physicalVolume);
       if (filters.archivedYear != null) params.set("archived_year", String(filters.archivedYear));
       if (filters.assignedToId) params.set("assigned_to_id", filters.assignedToId);
       return api<Paginated<DocumentItem>>(`/documents?${params.toString()}`);
+    },
+    locations: (filters: LocationFilters = {}) => {
+      const params = new URLSearchParams();
+      if (filters.physicalShelf) params.set("physical_shelf", filters.physicalShelf);
+      if (filters.physicalDivision) params.set("physical_division", filters.physicalDivision);
+      if (filters.physicalColumn) params.set("physical_column", filters.physicalColumn);
+      const query = params.toString();
+      return api<LocationNode[]>(query ? `/documents/locations?${query}` : "/documents/locations");
     },
     update: (id: string, data: DocumentUpdateInput) =>
       api<DocumentItem>(`/documents/${id}`, {

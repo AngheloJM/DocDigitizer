@@ -81,6 +81,11 @@ export type SearchResult = {
   rank: number;
 };
 
+export type LocationNode = {
+  value: string;
+  document_count: number;
+};
+
 export const ROLE_LABEL: Record<Role, string> = {
   student: "Estudiante",
   admin: "Administrador",
