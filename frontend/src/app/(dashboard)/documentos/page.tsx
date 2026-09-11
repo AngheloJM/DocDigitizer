@@ -197,6 +197,27 @@ function DocumentosContent() {
       setAssigningId(null);
     }
   }
+  async function onReprocess(docId: string) {
+  setError(null);
+
+  try {
+    const result = await backend.documents.reprocess(docId);
+
+    setItems((current) =>
+      current.map((doc) =>
+        doc.id === docId
+          ? { ...doc, status: result.status }
+          : doc
+      )
+    );
+  } catch (err) {
+    setError(
+      err instanceof ApiError
+        ? err.message
+        : "No se pudo reprocesar el documento"
+    );
+  }
+}
 
   function assigneeLabel(doc: DocumentItem) {
     if (!doc.assigned_to_id) return "Sin asignar";
@@ -474,6 +495,19 @@ function DocumentosContent() {
                               <Icon name="upload_file" className="text-lg" />
                             </button>
                           )}
+
+                          {doc.status === "completed" && canEditDocument(doc) && (
+                          <button
+                           type="button"
+                            onClick={() => void onReprocess(doc.id)}
+                            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
+                             title="Reprocesar documento"
+                            aria-label={`Reprocesar ${doc.title}`}
+                             >
+                             <Icon name="refresh" className="text-lg" />
+                             </button>
+                          )}
+                          
                           {doc.status === "completed" ? (
                             <a
                               href={backend.documents.downloadUrl(doc.id)}
