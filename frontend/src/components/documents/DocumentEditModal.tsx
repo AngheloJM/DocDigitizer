@@ -11,7 +11,8 @@ import { FormSection } from "@/components/ui/FormSection";
 import { Modal } from "@/components/ui/Modal";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import type { DocumentItem, DocumentUpdateInput, Folder } from "@/lib/types";
+import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
+import type { DocumentItem, DocumentUpdateInput } from "@/lib/types";
 
 const optionalText = (maximum: number) =>
   z.string().trim().max(maximum, `Máximo ${maximum} caracteres`);
@@ -64,11 +65,6 @@ const documentSchema = z
 
 type DocumentFormValues = z.infer<typeof documentSchema>;
 
-type FolderOption = {
-  id: string;
-  label: string;
-};
-
 type DocumentEditModalProps = {
   open: boolean;
   document: DocumentItem | null;
@@ -94,26 +90,6 @@ function getDefaultValues(document: DocumentItem): DocumentFormValues {
       ? String(document.archived_month_end)
       : "",
   };
-}
-
-async function loadFolderTree(ownerId: string): Promise<FolderOption[]> {
-  async function visit(parentId: string | null, depth: number): Promise<FolderOption[]> {
-    const folders = await backend.folders.list(parentId, ownerId);
-    const branches = await Promise.all(
-      folders.map(async (folder: Folder) => {
-        const current: FolderOption = {
-          id: folder.id,
-          label: `${"— ".repeat(depth)}${folder.name}`,
-        };
-        const children = await visit(folder.id, depth + 1);
-        return [current, ...children];
-      }),
-    );
-
-    return branches.flat();
-  }
-
-  return visit(null, 0);
 }
 
 export function DocumentEditModal({
