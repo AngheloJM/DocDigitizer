@@ -236,7 +236,7 @@ function DocumentosContent() {
       />
 
       <div className="flex flex-col lg:flex-row gap-6 items-start justify-between mb-8">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
             Documentos
           </h2>
@@ -248,7 +248,7 @@ function DocumentosContent() {
         <button
           type="button"
           onClick={() => setUploading((value) => !value)}
-          className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+          className="w-full sm:w-auto shrink-0 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
         >
           <Icon name="upload" className="text-lg" /> Subir documento
         </button>
@@ -378,7 +378,7 @@ function DocumentosContent() {
       )}
       {scanBusy && <p className="text-sm text-on-surface-variant mb-4">Subiendo escaneo...</p>}
 
-      <div className="bg-white rounded-2xl border border-outline-variant">
+      <div className="min-w-0 max-w-full bg-white rounded-2xl border border-outline-variant">
         <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
           <p className="text-xs text-on-surface-variant">
@@ -392,7 +392,12 @@ function DocumentosContent() {
             No hay documentos con estos filtros.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div
+            className="max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary"
+            role="region"
+            aria-label="Listado de documentos; desplázate horizontalmente para ver todas las columnas"
+            tabIndex={0}
+          >
             <table className="w-full text-left border-collapse min-w-[980px]">
               <thead>
                 <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
@@ -417,10 +422,10 @@ function DocumentosContent() {
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <p className="font-medium text-on-surface">{doc.title}</p>
+                        <p className="max-w-xs break-words font-medium text-on-surface">{doc.title}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {doc.doc_type && (
-                            <span className="text-xs text-on-surface-variant">{doc.doc_type}</span>
+                            <span className="max-w-xs break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
                           )}
                           {assignedToMe && (
                             <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
@@ -437,18 +442,19 @@ function DocumentosContent() {
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
                       </td>
-                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px]">
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] break-words">
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
                         {staff ? (
                           <select
                             value={doc.assigned_to_id ?? ""}
+                            aria-label={`Asignar documento: ${doc.title}`}
                             disabled={assigningId === doc.id}
                             onChange={(event) => {
                               if (event.target.value) void onAssign(doc.id, event.target.value);
                             }}
-                            className="w-full max-w-[180px] border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            className="w-full max-w-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           >
                             <option value="">
                               {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
@@ -472,7 +478,7 @@ function DocumentosContent() {
                         <StatusBadge status={doc.status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1 justify-end">
+                        <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
                           {canEditDocument(doc) && (
                             <button
                               type="button"

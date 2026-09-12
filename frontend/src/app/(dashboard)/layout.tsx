@@ -17,11 +17,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen bg-white text-on-surface font-sans antialiased">
       <Sidebar mobileOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
       <div
-        className="flex-1 flex flex-col min-h-screen transition-[margin-left] duration-300 ease-in-out"
+        className="flex min-w-0 flex-1 flex-col min-h-screen transition-[margin-left] duration-300 ease-in-out"
         style={{ marginLeft }}
       >
         <TopBar onMenuToggle={() => setMobileMenuOpen(true)} />
-        <main className="flex-1 p-4 md:px-10 md:py-8 overflow-y-auto bg-surface-container">{children}</main>
+        <main className="min-w-0 flex-1 p-4 md:px-6 md:py-6 xl:px-10 xl:py-8 overflow-y-auto bg-surface-container">{children}</main>
       </div>
     </div>
   );

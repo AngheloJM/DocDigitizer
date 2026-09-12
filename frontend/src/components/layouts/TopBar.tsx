@@ -33,18 +33,20 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
   }
 
   return (
-    <header className="flex justify-between items-center w-full px-4 md:px-8 h-14 sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-outline-variant">
-      <div className="flex items-center gap-2">
+    <header className="flex min-w-0 justify-between items-center w-full px-4 md:px-6 xl:px-8 h-14 sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-outline-variant">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          className="md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-surface-container transition-colors"
+          className="inline-flex h-11 w-11 items-center justify-center md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-surface-container transition-colors"
+          aria-label="Abrir menú de navegación"
           onClick={onMenuToggle}
         >
           <Icon name="menu" className="text-xl" />
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          className="hidden md:flex h-11 w-11 xl:h-auto xl:w-auto items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          aria-label={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
@@ -56,14 +58,15 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
         </span>
       </div>
 
-      <form className="flex-1 max-w-lg mx-3 md:mx-6 relative" onSubmit={onSearch}>
+      <form className="relative mx-2 min-w-0 flex-1 max-w-lg md:mx-4" onSubmit={onSearch} role="search">
         <div className="relative flex items-center w-full h-9 rounded-2xl bg-surface-container border border-transparent hover:bg-surface-container-high focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
-          <div className="grid place-items-center h-full w-10 text-on-surface-variant">
+          <div className="grid shrink-0 place-items-center h-full w-10 text-on-surface-variant">
             <Icon name="search" className="text-lg" />
           </div>
           <input
-            className="peer h-full w-full outline-none text-sm text-on-surface bg-transparent pr-3 border-none focus:ring-0 placeholder:text-on-surface-variant/60"
+            className="h-full min-w-0 flex-1 border-none bg-transparent pr-3 text-base text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-0 md:text-sm"
             placeholder="Buscar documentos..."
+            aria-label="Buscar documentos"
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -71,7 +74,7 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
         </div>
       </form>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <div className="relative" ref={userMenuRef}>
           <button
             type="button"
@@ -79,11 +82,12 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
             className="flex items-center gap-2.5 cursor-pointer hover:bg-surface-container transition-colors p-1 pr-2.5 rounded-2xl"
             aria-expanded={showUserMenu}
             aria-haspopup="menu"
+            aria-label="Abrir menú de usuario"
           >
-            <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-secondary/40">
+            <div className="w-9 h-9 shrink-0 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-secondary/40">
               {user ? initials(user.full_name) : loading ? "…" : "—"}
             </div>
-            <div className="hidden sm:block text-left max-w-[180px]">
+            <div className="hidden xl:block text-left max-w-[180px]">
               <p className="text-sm font-medium text-on-surface leading-tight truncate">
                 {user?.full_name ?? (loading ? "Cargando..." : "Sin sesión")}
               </p>
@@ -91,7 +95,7 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 {user ? ROLE_LABEL[user.role] : "—"}
               </p>
             </div>
-            <Icon name="expand_more" className="text-base text-on-surface-variant hidden sm:block" />
+            <Icon name="expand_more" className="text-base text-on-surface-variant hidden xl:block" />
           </button>
 
           {showUserMenu && user && (
