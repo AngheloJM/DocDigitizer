@@ -24,10 +24,21 @@ export type DocumentListFilters = {
   assignedToId?: string | null;
 };
 
+
 export type LocationFilters = {
   physicalShelf?: string | null;
   physicalDivision?: string | null;
   physicalColumn?: string | null;
+};
+export type SearchFilters = {
+  q: string;
+  docType?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  folderId?: string | null;
+  ownerId?: string | null;
+  page?: number;
+  perPage?: number;
 };
 
 export const backend = {
@@ -179,8 +190,18 @@ export const backend = {
       `/api/proxy/documents/${id}/download`,
   },
 
-  search: (q: string) =>
-    api<Paginated<SearchResult>>(
-      `/search?q=${encodeURIComponent(q)}`
-    ),
+
+  search: (filters: SearchFilters) => {
+    const params = new URLSearchParams({
+      q: filters.q.trim(),
+      page: String(filters.page ?? 1),
+      per_page: String(filters.perPage ?? 20),
+    });
+    if (filters.docType?.trim()) params.set("doc_type", filters.docType.trim());
+    if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+    if (filters.dateTo) params.set("date_to", filters.dateTo);
+    if (filters.folderId) params.set("folder_id", filters.folderId);
+    if (filters.ownerId) params.set("owner_id", filters.ownerId);
+    return api<Paginated<SearchResult>>(`/search?${params.toString()}`);
+  },
 };
