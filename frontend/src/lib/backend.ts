@@ -21,6 +21,8 @@ export type DocumentListFilters = {
   physicalColumn?: string | null;
   physicalVolume?: string | null;
   archivedYear?: number | null;
+  archivedMonthFrom?: number | null;
+  archivedMonthTo?: number | null;
   assignedToId?: string | null;
 };
 
@@ -115,6 +117,12 @@ export const backend = {
 
       if (filters.archivedYear != null)
         params.set("archived_year", String(filters.archivedYear));
+
+      if(filters.archivedMonthFrom != null)
+        params.set("archived_month_from", String(filters.archivedMonthFrom));
+
+      if(filters.archivedMonthTo != null)
+        params.set("archived_month_to", String(filters.archivedMonthTo));
 
       if (filters.assignedToId)
         params.set("assigned_to_id", filters.assignedToId);

@@ -1,10 +1,10 @@
-"use client";
+
 
 import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-
+import { MonthOptions } from "@/components/ui/MonthOption";
 import { FormActions } from "@/components/ui/FormActions";
 import { FormField, formControlClass } from "@/components/ui/FormField";
 import { FormSection } from "@/components/ui/FormSection";
@@ -333,18 +333,3 @@ export function DocumentEditModal({
   );
 }
 
-function MonthOptions({ allowEmpty }: { allowEmpty: boolean }) {
-  const months = [
-    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-  ];
-
-  return (
-    <>
-      <option value="" disabled={!allowEmpty}>Sin especificar</option>
-      {months.map((month, index) => (
-        <option key={month} value={index + 1}>{month}</option>
-      ))}
-    </>
-  );
-}
