@@ -91,6 +91,7 @@ async def _process_document(document_id: uuid.UUID) -> None:
             document.processed_at = datetime.now(timezone.utc)
             await db.commit()
         except Exception:
+            logger.exception("document=%s fallo el procesamiento", document_id)
             await db.rollback()
             document.status = "failed"
             await db.commit()
