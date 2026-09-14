@@ -22,12 +22,24 @@ from app.rate_limit import RateLimitExceededError, enforce_rate_limit
 REFRESH_MAX_ATTEMPTS = 30
 REFRESH_WINDOW_SECONDS = 900
 
+USER_MANAGEMENT_MAX_ATTEMPTS = 30
+USER_MANAGEMENT_WINDOW_SECONDS = 3600
+
 
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 router = APIRouter()
 settings = get_settings()
+
+
+async def _enforce_user_management_rate_limit(user_id: uuid.UUID) -> None:
+    try:
+        await enforce_rate_limit(
+            f"user_admin_rate:{user_id}", USER_MANAGEMENT_MAX_ATTEMPTS, USER_MANAGEMENT_WINDOW_SECONDS
+        )
+    except RateLimitExceededError as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -37,6 +49,8 @@ async def create_user(data: UserCreate, db: DbSession, current_user: CurrentUser
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para crear usuarios",
         )
+
+    await _enforce_user_management_rate_limit(current_user.id)
 
     existing = await service.get_user_by_email(db, data.email)
     if existing is not None:
@@ -92,6 +106,8 @@ async def update_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para modificar usuarios",
         )
+
+    await _enforce_user_management_rate_limit(current_user.id)
 
     target_user = await service.get_manageable_user(db, current_user, user_id)
     if target_user is None:
