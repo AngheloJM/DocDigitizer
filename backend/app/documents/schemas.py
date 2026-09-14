@@ -55,6 +55,7 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     processed_at: datetime | None
     error_message: str | None = None
+    deleted_at: datetime | None = None
 
 
 class OriginalImageResponse(BaseModel):

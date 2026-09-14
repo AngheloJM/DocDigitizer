@@ -198,6 +198,7 @@ async def list_documents(
     assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
+    include_deleted: bool = False,
 ):
     items, total = await service.list_documents(
         db,
@@ -216,6 +217,7 @@ async def list_documents(
         assigned_to_id,
         page,
         per_page,
+        include_deleted=include_deleted and is_staff(current_user),
     )
     pages = math.ceil(total / per_page) if total else 0
     return DocumentListResponse(items=items, total=total, page=page, pages=pages)
@@ -353,4 +355,23 @@ async def delete_document(document_id: uuid.UUID, db: DbSession, current_user: C
         ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
-    await service.delete_document(db, document)
+    await service.soft_delete_document(db, document)
+
+
+@router.post("/{document_id}/restore", response_model=DocumentResponse)
+async def restore_document(document_id: uuid.UUID, db: DbSession, current_user: CurrentUser, request: Request):
+    document = await service.get_document(db, document_id, current_user, include_deleted=True)
+    if document is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
+
+    restored = await service.restore_document(db, document)
+
+    await service.log_audit_action(
+        db,
+        current_user.id,
+        action="restore",
+        document_id=document.id,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    return restored
