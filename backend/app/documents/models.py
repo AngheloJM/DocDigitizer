@@ -50,6 +50,7 @@ class Document(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     physical_shelf: Mapped[str | None] = mapped_column(String(50), nullable=True)
     physical_division: Mapped[str | None] = mapped_column(String(50), nullable=True)
     physical_column: Mapped[str | None] = mapped_column(String(50), nullable=True)
