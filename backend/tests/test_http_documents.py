@@ -191,3 +191,38 @@ async def test_locations_route_does_not_collide_with_document_id_route(client, s
     assert "E-07" in values
 
     await client.delete(f"/documents/{doc_id}", headers=headers)
+
+
+@pytest.mark.asyncio
+async def test_restore_document_after_delete(client, student_token):
+    headers = {"Authorization": f"Bearer {student_token}"}
+
+    create = await client.post("/documents", headers=headers, json={"title": "Para restaurar"})
+    doc_id = create.json()["id"]
+
+    delete = await client.delete(f"/documents/{doc_id}", headers=headers)
+    assert delete.status_code == 204
+
+    assert (await client.get(f"/documents/{doc_id}", headers=headers)).status_code == 404
+
+    restore = await client.post(f"/documents/{doc_id}/restore", headers=headers)
+    assert restore.status_code == 200
+    assert restore.json()["deleted_at"] is None
+
+    get_after_restore = await client.get(f"/documents/{doc_id}", headers=headers)
+    assert get_after_restore.status_code == 200
+
+    await client.delete(f"/documents/{doc_id}", headers=headers)
+
+
+@pytest.mark.asyncio
+async def test_deleted_document_does_not_appear_in_listing(client, student_token):
+    headers = {"Authorization": f"Bearer {student_token}"}
+
+    create = await client.post("/documents", headers=headers, json={"title": "Para borrar"})
+    doc_id = create.json()["id"]
+
+    await client.delete(f"/documents/{doc_id}", headers=headers)
+
+    listing = await client.get("/documents", headers=headers)
+    assert doc_id not in {item["id"] for item in listing.json()["items"]}
