@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.dependencies import CurrentUser, DbSession
 from app.folders import service
 from app.folders.schemas import FolderCreate, FolderResponse, FolderUpdate
-from app.folders.service import InvalidParentError
+from app.folders.service import FolderNotEmptyError, InvalidParentError
 
 router = APIRouter()
 
@@ -56,4 +56,7 @@ async def delete_folder(folder_id: uuid.UUID, db: DbSession, current_user: Curre
     if folder is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carpeta no encontrada")
 
-    await service.delete_folder(db, folder)
+    try:
+        await service.delete_folder(db, folder)
+    except FolderNotEmptyError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))

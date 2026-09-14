@@ -6,7 +6,15 @@ from app.auth.models import User
 from app.auth.service import hash_password
 from app.database import SessionLocal
 from app.folders.schemas import FolderCreate, FolderUpdate
-from app.folders.service import InvalidParentError, create_folder, get_folder, list_folders, update_folder
+from app.folders.service import (
+    FolderNotEmptyError,
+    InvalidParentError,
+    create_folder,
+    delete_folder,
+    get_folder,
+    list_folders,
+    update_folder,
+)
 
 
 @pytest.fixture
@@ -61,6 +69,22 @@ async def test_folder_cannot_be_moved_into_its_own_descendant(db_session, test_u
 
     with pytest.raises(InvalidParentError):
         await update_folder(db_session, root, FolderUpdate(parent_id=child.id))
+
+    await db_session.delete(child)
+    await db_session.commit()
+    await db_session.delete(root)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_cannot_delete_folder_with_subfolder(db_session, test_user):
+    root = await create_folder(db_session, test_user.id, FolderCreate(name="Raiz"))
+    child = await create_folder(
+        db_session, test_user.id, FolderCreate(name="Hijo", parent_id=root.id)
+    )
+
+    with pytest.raises(FolderNotEmptyError):
+        await delete_folder(db_session, root)
 
     await db_session.delete(child)
     await db_session.commit()
