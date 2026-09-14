@@ -284,6 +284,14 @@ async def update_user_admin(
     if data.is_active is not None:
         target_user.is_active = data.is_active
 
+    if data.password is not None:
+        target_user.password_hash = hash_password(data.password)
+
     await db.commit()
     await db.refresh(target_user)
+
+    if data.password is not None:
+        # Forzar a que la persona vuelva a loguearse con la contraseña nueva.
+        await revoke_all_sessions(target_user.id)
+
     return target_user
