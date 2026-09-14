@@ -110,6 +110,12 @@ async def update_user(
             detail="No tienes permisos para modificar usuarios",
         )
 
+    if data.password is not None and current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo un super_admin puede resetear la contraseña de otro usuario",
+        )
+
     await _enforce_user_management_rate_limit(current_user.id)
 
     target_user = await service.get_manageable_user(db, current_user, user_id)
