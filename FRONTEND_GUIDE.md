@@ -2,13 +2,12 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-## Estado actual (2026-09-10)
+## Estado actual (2026-09-13)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
-- **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
-- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
+- **Archivo** (`/ubicacion`, unificado 13/09/2026): una sola pestaña en el menú. Navega el archivo real (estante → división → columna → tomo) con `GET /documents/locations`. `/carpetas` redirige aquí. El árbol manual de carpetas ya no está en el menú; asignar una carpeta sigue existiendo al editar un documento.
 - **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
@@ -20,7 +19,6 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 1. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
 2. **Filtro por rango de meses** en `/documentos` — el backend ya soporta `?archived_month_from=&archived_month_to=` (ver sección 3), falta el selector en la UI (hoy solo hay filtro por año exacto).
-3. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug.
 
 Ninguno de estos bloquea el uso básico del sistema.
 
@@ -135,11 +133,9 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
-### Propuesta de rediseño (nuevo, 07/09/2026): "carpetas" basadas en ubicación física
+### Decisión (13/09/2026): una sola pestaña, se queda el estante
 
-Las carpetas de arriba son un árbol **manual** (lo arma el usuario a mano) y hoy en producción **nadie las usa de verdad** — no reflejan la ubicación física real del archivo (estante/división/columna/tomo), que ya tiene cada documento. Discutimos con el equipo la idea de que la navegación de "carpetas" en realidad sea el **gabinete físico real** (estante → división → columna → tomo), en vez de un árbol arbitrario.
-
-Se agregó un endpoint nuevo para esto, **sin tocar ni reemplazar** el módulo de `folders` de arriba (para no romper lo que ya está construido) — la decisión de si `/carpetas` en la UI pasa a usar esto en vez de (o adicionalmente a) las carpetas manuales queda del lado del frontend:
+Las carpetas de arriba son un árbol **manual** y no reflejan dónde está guardado el documento. El archivo real ya está en estante/división/columna/tomo. Por eso el menú ya no tiene dos pestañas (Carpetas y Ubicación): quedó **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. El módulo `folders` del backend no se borró; al editar un documento todavía se puede asignar una carpeta.
 
 ```
 GET /documents/locations?physical_shelf=&physical_division=&physical_column=
