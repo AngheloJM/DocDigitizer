@@ -17,6 +17,7 @@ from app.documents.schemas import (
     LocationNode,
 )
 from app.documents.service import (
+    MAX_UPLOAD_SIZE_BYTES,
     DocumentAlreadyHasFileError,
     InvalidAssigneeError,
     InvalidFileError,
@@ -36,6 +37,9 @@ UPLOAD_WINDOW_SECONDS = 3600
 REPROCESS_MAX_ATTEMPTS = 20
 REPROCESS_WINDOW_SECONDS = 3600
 
+# Margen sobre el limite real: el body multipart trae boundary/headers ademas del archivo.
+CONTENT_LENGTH_REJECT_THRESHOLD = MAX_UPLOAD_SIZE_BYTES + 1024 * 1024
+
 
 async def _enforce_upload_rate_limit(user_id: uuid.UUID) -> None:
     try:
@@ -53,6 +57,21 @@ async def _enforce_reprocess_rate_limit(user_id: uuid.UUID) -> None:
         )
     except RateLimitExceededError as error:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
+
+
+def _reject_if_declared_too_large(request: Request) -> None:
+    content_length = request.headers.get("content-length")
+    if content_length is None:
+        return
+    try:
+        declared_size = int(content_length)
+    except ValueError:
+        return
+    if declared_size > CONTENT_LENGTH_REJECT_THRESHOLD:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="El archivo excede el tamano maximo de 20 MB",
+        )
 
 
 def _client_ip(request: Request) -> str | None:
@@ -91,6 +110,7 @@ async def upload_document(
     folder_id: uuid.UUID | None = Form(None),
 ):
     await _enforce_upload_rate_limit(current_user.id)
+    _reject_if_declared_too_large(request)
 
     file_bytes = await file.read()
     data = DocumentCreate(title=title, description=description, doc_type=doc_type, folder_id=folder_id)
@@ -129,6 +149,7 @@ async def upload_document_file(
     file: UploadFile = File(...),
 ):
     await _enforce_upload_rate_limit(current_user.id)
+    _reject_if_declared_too_large(request)
 
     document = await service.get_document(db, document_id, current_user)
     if document is None:
