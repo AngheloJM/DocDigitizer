@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -24,8 +25,16 @@ async def get_current_user(
     )
 
     token = credentials.credentials
-    user_id = auth_service.decode_access_token(token)
-    if user_id is None:
+    claims = auth_service.decode_access_token_claims(token)
+    if claims is None or "sub" not in claims:
+        raise credentials_error
+
+    if await auth_service.is_access_token_blacklisted(claims.get("jti")):
+        raise credentials_error
+
+    try:
+        user_id = uuid.UUID(claims["sub"])
+    except ValueError:
         raise credentials_error
 
     user = await auth_service.get_user_by_id(db, user_id)
