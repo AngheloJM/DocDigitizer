@@ -9,6 +9,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagina } from "@/components/ui/paginacion";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
+import { formControlClass, FormField } from "@/components/ui/FormField";
+import { MonthOptions } from "@/components/ui/MonthOption";
 import {
   formatArchivedPeriod,
   formatPhysicalLocation,
@@ -39,6 +41,8 @@ function DocumentosContent() {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [yearFilter, setYearFilter] = useState("");
+  const [monthFormFilter, setMonthFormFilter] = useState("");
+  const [monthToFilter, setMonthToFilter]= useState("");
   const [shelfFilter, setShelfFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
@@ -47,6 +51,7 @@ function DocumentosContent() {
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
+  const listRequestRef = useRef(0);
 
   const usersById = useMemo(() => {
     const map = new Map<string, User>();
@@ -66,26 +71,32 @@ function DocumentosContent() {
 
   const load = useCallback(async () => {
     if (!user) return;
+    const requestId = ++listRequestRef.current;
     setError(null);
     try {
       const data = await backend.documents.list({
         page: pagina,
         perPage: PAGI_SIZE,
         archivedYear: yearFilter ? Number(yearFilter) : null,
+        archivedMonthFrom: monthFormFilter ? Number(monthFormFilter) : null,
+        archivedMonthTo: monthToFilter ? Number(monthToFilter) : null, 
         physicalShelf: shelfFilter.trim() || null,
         statusFilter: statusFilter || null,
         assignedToId: assignmentFilter === "mine" ? user.id : null,
       });
 
+      if (requestId != listRequestRef.current) return;
+
       setItems(data.items);
       setTotal(data.total);
       setTotalPaginas(data.pages);
     } catch (err) {
+      if (requestId === listRequestRef.current) return;
       setError(err instanceof ApiError ? err.message : "No se pudieron cargar los documentos");
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }, [user, pagina, yearFilter, shelfFilter, statusFilter, assignmentFilter]);
+  }, [user, pagina, yearFilter, monthFormFilter, monthToFilter,shelfFilter, statusFilter, assignmentFilter]);
 
   useEffect(() => {
     void loadUsers();
@@ -236,7 +247,7 @@ function DocumentosContent() {
       />
 
       <div className="flex flex-col lg:flex-row gap-6 items-start justify-between mb-8">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
             Documentos
           </h2>
@@ -248,13 +259,13 @@ function DocumentosContent() {
         <button
           type="button"
           onClick={() => setUploading((value) => !value)}
-          className="bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+          className="w-full sm:w-auto shrink-0 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
         >
           <Icon name="upload" className="text-lg" /> Subir documento
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
             Año archivado
@@ -275,6 +286,52 @@ function DocumentosContent() {
             ))}
           </select>
         </div>
+        <FormField
+          id="document-month-form"
+          label="Mes Archivado desde"
+          className="min-w-0"
+        >
+          <select
+            id="document-month-form"
+            value={monthFormFilter}
+            onChange={(event) =>{
+              setMonthFormFilter(event.target.value)
+              setPagina(1);
+            }}
+            className={`${formControlClass} min-w-0 min-h-11 text-base md:text-sm`}
+            
+          >
+            <MonthOptions
+              allowEmpty
+              emptyLabel="Sin limite inferior"
+              max={monthToFilter ? Number(monthToFilter):12}
+            />
+          </select>
+        </FormField>
+
+        <FormField
+          id="document-month-to"
+          label="Mes archivado hasta"
+          className="min-w-0"
+        >
+          <select
+            id="document-month-to"
+            value={monthToFilter}
+            onChange={(event)=> {
+              setMonthToFilter(event.target.value);
+              setPagina(1);
+            }}
+            className={`${formControlClass} min-w-0 min-h-11 text-base md:text-sm`}
+            
+          >
+            <MonthOptions
+              allowEmpty
+              emptyLabel="Sin limite superior"
+              min={monthFormFilter ? Number(monthFormFilter): 1}
+            />
+          </select>
+
+        </FormField>
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
             Estante
@@ -378,7 +435,7 @@ function DocumentosContent() {
       )}
       {scanBusy && <p className="text-sm text-on-surface-variant mb-4">Subiendo escaneo...</p>}
 
-      <div className="bg-white rounded-2xl border border-outline-variant">
+      <div className="min-w-0 max-w-full bg-white rounded-2xl border border-outline-variant">
         <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3">
           <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
           <p className="text-xs text-on-surface-variant">
@@ -392,8 +449,13 @@ function DocumentosContent() {
             No hay documentos con estos filtros.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[980px]">
+          <div
+            className="max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary"
+            role="region"
+            aria-label="Listado de documentos; desplázate horizontalmente para ver todas las columnas"
+            tabIndex={0}
+          >
+            <table className="w-full text-left border-collapse min-width-[980px]">
               <thead>
                 <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
                   <th className="py-3 px-4 font-medium">Título</th>
@@ -417,10 +479,10 @@ function DocumentosContent() {
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <p className="font-medium text-on-surface">{doc.title}</p>
+                        <p className="max-w-xs wrap-break-words font-medium text-on-surface">{doc.title}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {doc.doc_type && (
-                            <span className="text-xs text-on-surface-variant">{doc.doc_type}</span>
+                            <span className="max-w-xs wrap-break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
                           )}
                           {assignedToMe && (
                             <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
@@ -437,18 +499,19 @@ function DocumentosContent() {
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
                       </td>
-                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px]">
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-width[220px] warp-break-words">
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
                         {staff ? (
                           <select
                             value={doc.assigned_to_id ?? ""}
+                            aria-label={`Asignar documento: ${doc.title}`}
                             disabled={assigningId === doc.id}
                             onChange={(event) => {
                               if (event.target.value) void onAssign(doc.id, event.target.value);
                             }}
-                            className="w-full max-w-[180px] border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            className="w-full max-width-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           >
                             <option value="">
                               {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
@@ -472,7 +535,7 @@ function DocumentosContent() {
                         <StatusBadge status={doc.status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1 justify-end">
+                        <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
                           {canEditDocument(doc) && (
                             <button
                               type="button"
