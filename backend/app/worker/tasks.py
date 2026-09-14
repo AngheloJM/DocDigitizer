@@ -45,6 +45,7 @@ async def _process_document(document_id: uuid.UUID) -> None:
             return
 
         document.status = "processing"
+        document.error_message = None
         await db.commit()
 
         try:
@@ -111,12 +112,13 @@ async def _process_document(document_id: uuid.UUID) -> None:
             raise
 
 
-async def _mark_document_failed(document_id: uuid.UUID) -> None:
+async def _mark_document_failed(document_id: uuid.UUID, error_message: str | None = None) -> None:
     async with SessionLocal() as db:
         document = await db.get(Document, document_id)
         if document is None:
             return
         document.status = "failed"
+        document.error_message = error_message[:2000] if error_message else None
         await db.commit()
 
 
@@ -127,9 +129,9 @@ async def _process_document_and_dispose(document_id: uuid.UUID) -> None:
         await engine.dispose()
 
 
-async def _mark_document_failed_and_dispose(document_id: uuid.UUID) -> None:
+async def _mark_document_failed_and_dispose(document_id: uuid.UUID, error_message: str | None = None) -> None:
     try:
-        await _mark_document_failed(document_id)
+        await _mark_document_failed(document_id, error_message)
     finally:
         await engine.dispose()
 
@@ -138,13 +140,13 @@ async def _mark_document_failed_and_dispose(document_id: uuid.UUID) -> None:
 def process_document(self, document_id: str) -> None:
     try:
         asyncio.run(_process_document_and_dispose(uuid.UUID(document_id)))
-    except MissingOriginalImageError:
-        asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id)))
+    except MissingOriginalImageError as exc:
+        asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id), str(exc)))
         raise
     except Exception as exc:
         if _should_give_up(self.request.retries, self.max_retries):
             logger.error("document=%s agoto los reintentos, marcando como failed", document_id)
-            asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id)))
+            asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id), str(exc)))
             raise
         countdown = _retry_countdown(self.request.retries)
         logger.warning(

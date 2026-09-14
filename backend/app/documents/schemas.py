@@ -54,6 +54,7 @@ class DocumentResponse(BaseModel):
     archived_month_end: int | None
     created_at: datetime
     processed_at: datetime | None
+    error_message: str | None = None
 
 
 class OriginalImageResponse(BaseModel):
@@ -89,6 +90,7 @@ class DocumentDetailResponse(DocumentResponse):
 class DocumentStatusResponse(BaseModel):
     status: str
     processed_at: datetime | None = None
+    error_message: str | None = None
 
 
 class DocumentListResponse(BaseModel):
