@@ -157,10 +157,10 @@ function UbicacionContent() {
     <>
       <div className="mb-8">
         <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
-          Ubicación física
+          Archivo
         </h2>
         <p className="text-sm text-on-surface-variant max-w-2xl">
-          Navega el archivo real: estante → división → columna → tomo.
+          El archivo físico del campus: estante, división, columna y tomo. Reemplaza la pestaña de carpetas.
         </p>
       </div>
 

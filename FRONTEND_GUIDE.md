@@ -2,25 +2,30 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-> 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
-## Estado actual (2026-09-17)
 
 **✅ Ya construido y funcionando en producción:**
+
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
+
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
+
 - **Inicio** (`/inicio`, nuevo 13/09/2026): resumen con total, pendientes y completados, y los últimos documentos registrados. El login ya no redirige a `/carpetas`.
-- **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
-- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
+
+- **Archivo** (`/ubicacion`, unificado 13/09/2026): una sola pestaña en el menú. Navega el archivo real (estante → división → columna → tomo) con `GET /documents/locations`. `/carpetas` redirige aquí. El árbol manual de carpetas ya no está en el menú; asignar una carpeta sigue existiendo al editar un documento.
+
 - **Documentos** (`/documentos`): listar con filtros (año archivado, rango de mes archivado, estante, estado, asignación — nuevo 17/09/2026), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
+
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
+
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
+
 - **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas** y **cambiar de rol** (solo `super_admin` ve el botón de cambiar rol).
+
 - Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
-
 **⏳ Pendiente — prioridad alta (funcionalidad de seguridad del hardening del 14/09 sin usar todavía):**
-
 1. **El logout del frontend no llama al backend** — hoy `api/auth/logout/route.ts` y `logoutRequest()` solo borran las cookies locales, nunca pegan a `POST /auth/logout`. Esto es más que un detalle: el `refresh_token` real **nunca se revoca en el servidor**, sigue siendo válido 7 días aunque el usuario haya "cerrado sesión". Hay que llamar al endpoint con el `refresh_token` guardado **antes** de borrar las cookies, y de paso mandar el header `Authorization` para que además invalide el `access_token` de inmediato (ver sección 1).
 2. **Sin UI para `logout-all` / `revoke-sessions`** — el backend ya soporta "cerrar todas mis sesiones" y, para un admin, "forzar el cierre de sesión de otro usuario" (útil ante una cuenta comprometida). Ninguno de los dos tiene botón todavía.
 3. **Sin UI de reseteo de contraseña** — un `super_admin` no tiene forma de fijarle una contraseña nueva a otro usuario desde `/usuarios`, aunque el backend ya lo soporta (`PATCH /auth/users/{id}` con `password`).
@@ -180,11 +185,9 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
-### Propuesta de rediseño (nuevo, 07/09/2026): "carpetas" basadas en ubicación física
+### Decisión (13/09/2026): una sola pestaña, se queda el estante
 
-Las carpetas de arriba son un árbol **manual** (lo arma el usuario a mano) y hoy en producción **nadie las usa de verdad** — no reflejan la ubicación física real del archivo (estante/división/columna/tomo), que ya tiene cada documento. Discutimos con el equipo la idea de que la navegación de "carpetas" en realidad sea el **gabinete físico real** (estante → división → columna → tomo), en vez de un árbol arbitrario.
-
-Se agregó un endpoint nuevo para esto, **sin tocar ni reemplazar** el módulo de `folders` de arriba (para no romper lo que ya está construido) — la decisión de si `/carpetas` en la UI pasa a usar esto en vez de (o adicionalmente a) las carpetas manuales queda del lado del frontend:
+Las carpetas de arriba son un árbol **manual** y no reflejan dónde está guardado el documento. El archivo real ya está en estante/división/columna/tomo. Por eso el menú ya no tiene dos pestañas (Carpetas y Ubicación): quedó **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. El módulo `folders` del backend no se borró; al editar un documento todavía se puede asignar una carpeta.
 
 ```
 GET /documents/locations?physical_shelf=&physical_division=&physical_column=

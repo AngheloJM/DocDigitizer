@@ -10,8 +10,7 @@ import { isStaff } from "@/lib/types";
 
 const navItems = [
   { href: "/inicio", icon: "home", label: "Inicio" },
-  { href: "/ubicacion", icon: "shelves", label: "Ubicación" },
-  { href: "/carpetas", icon: "inventory_2", label: "Carpetas" },
+  { href: "/ubicacion", icon: "shelves", label: "Archivo" },
   { href: "/documentos", icon: "description", label: "Documentos" },
   { href: "/busqueda", icon: "search", label: "Búsqueda" },
 ];
