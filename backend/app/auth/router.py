@@ -1,7 +1,9 @@
 import math
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth import service
 from app.auth.permissions import is_staff
@@ -31,6 +33,7 @@ def _client_ip(request: Request) -> str:
 
 router = APIRouter()
 settings = get_settings()
+_optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def _enforce_user_management_rate_limit(user_id: uuid.UUID) -> None:
@@ -141,7 +144,7 @@ async def login(data: LoginRequest, db: DbSession):
         )
 
     await service.reset_login_attempts(data.email)
-    access_token = service.create_access_token(user.id)
+    access_token = await service.create_access_token(user.id)
     refresh_token = await service.create_refresh_token(user.id)
     return TokenResponse(
         access_token=access_token,
@@ -173,7 +176,7 @@ async def refresh(data: RefreshRequest, db: DbSession, request: Request):
             detail="Refresh token invalido o expirado",
         )
 
-    access_token = service.create_access_token(user.id)
+    access_token = await service.create_access_token(user.id)
     new_refresh_token = await service.create_refresh_token(user.id)
     return TokenResponse(
         access_token=access_token,
@@ -183,8 +186,35 @@ async def refresh(data: RefreshRequest, db: DbSession, request: Request):
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(data: RefreshRequest):
+async def logout(
+    data: RefreshRequest,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_optional_bearer_scheme)] = None,
+):
     await service.revoke_refresh_token(data.refresh_token)
+    if credentials is not None:
+        await service.blacklist_access_token(credentials.credentials)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(current_user: CurrentUser):
+    """Revoca todos los refresh tokens activos y los access tokens ya emitidos del usuario actual."""
+    await service.revoke_all_sessions(current_user.id)
+
+
+@router.post("/users/{user_id}/revoke-sessions", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_user_sessions(user_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
+    """Permite a un admin/super_admin cerrar de golpe todas las sesiones de un usuario que gestiona."""
+    if not is_staff(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para revocar sesiones",
+        )
+
+    target_user = await service.get_manageable_user(db, current_user, user_id)
+    if target_user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+
+    await service.revoke_all_sessions(target_user.id)
 
 
 @router.get("/me", response_model=UserResponse)
