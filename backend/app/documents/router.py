@@ -33,11 +33,23 @@ router = APIRouter()
 UPLOAD_MAX_ATTEMPTS = 20
 UPLOAD_WINDOW_SECONDS = 3600
 
+REPROCESS_MAX_ATTEMPTS = 20
+REPROCESS_WINDOW_SECONDS = 3600
+
 
 async def _enforce_upload_rate_limit(user_id: uuid.UUID) -> None:
     try:
         await enforce_rate_limit(
             f"upload_rate:{user_id}", UPLOAD_MAX_ATTEMPTS, UPLOAD_WINDOW_SECONDS
+        )
+    except RateLimitExceededError as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
+
+
+async def _enforce_reprocess_rate_limit(user_id: uuid.UUID) -> None:
+    try:
+        await enforce_rate_limit(
+            f"reprocess_rate:{user_id}", REPROCESS_MAX_ATTEMPTS, REPROCESS_WINDOW_SECONDS
         )
     except RateLimitExceededError as error:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
@@ -263,6 +275,8 @@ async def download_document(document_id: uuid.UUID, db: DbSession, current_user:
 
 @router.post("/{document_id}/reprocess", response_model=DocumentUploadResponse, status_code=status.HTTP_202_ACCEPTED)
 async def reprocess_document(document_id: uuid.UUID, db: DbSession, current_user: CurrentUser, request: Request):
+    await _enforce_reprocess_rate_limit(current_user.id)
+
     document = await service.get_document(db, document_id, current_user)
     if document is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Documento no encontrado")
