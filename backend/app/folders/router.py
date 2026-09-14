@@ -6,12 +6,23 @@ from app.dependencies import CurrentUser, DbSession
 from app.folders import service
 from app.folders.schemas import FolderCreate, FolderResponse, FolderUpdate
 from app.folders.service import FolderNotEmptyError, InvalidParentError
+from app.rate_limit import RateLimitExceededError, enforce_rate_limit
 
 router = APIRouter()
+
+FOLDER_CREATE_MAX_ATTEMPTS = 30
+FOLDER_CREATE_WINDOW_SECONDS = 3600
 
 
 @router.post("", response_model=FolderResponse, status_code=status.HTTP_201_CREATED)
 async def create_folder(data: FolderCreate, db: DbSession, current_user: CurrentUser):
+    try:
+        await enforce_rate_limit(
+            f"folder_create_rate:{current_user.id}", FOLDER_CREATE_MAX_ATTEMPTS, FOLDER_CREATE_WINDOW_SECONDS
+        )
+    except RateLimitExceededError as error:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
+
     try:
         return await service.create_folder(db, current_user.id, data)
     except InvalidParentError as error:
