@@ -160,7 +160,7 @@ function UbicacionContent() {
           Archivo
         </h2>
         <p className="text-sm text-on-surface-variant max-w-2xl">
-          El archivo físico del campus: estante, división, columna y tomo. Reemplaza la pestaña de carpetas.
+          Navega el archivo físico: estante, división, columna y tomo.
         </p>
       </div>
 
