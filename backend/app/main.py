@@ -69,10 +69,16 @@ async def readiness_check(db: DbSession):
         checks["redis"] = "error"
 
     try:
-        await run_in_threadpool(get_minio_client().list_buckets)
-        checks["storage"] = "ok"
+        exists = await run_in_threadpool(
+            get_minio_client().bucket_exists, settings.minio_bucket_originals
+        )
+        checks["storage"] = "ok" if exists else "error"
+        if not exists:
+            logger.error(
+                "Readiness check: el bucket '%s' no existe", settings.minio_bucket_originals
+            )
     except Exception:
-        logger.exception("Readiness check: fallo la conexion a MinIO")
+        logger.exception("Readiness check: fallo la conexion al almacenamiento")
         checks["storage"] = "error"
 
     healthy = all(value == "ok" for value in checks.values())
