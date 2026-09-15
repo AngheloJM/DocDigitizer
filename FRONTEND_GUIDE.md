@@ -7,7 +7,9 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
-- **Archivo** (`/ubicacion`, unificado 13/09/2026): una sola pestaña en el menú. Navega el archivo real (estante → división → columna → tomo) con `GET /documents/locations`. `/carpetas` redirige aquí. El árbol manual de carpetas ya no está en el menú; asignar una carpeta sigue existiendo al editar un documento.
+- **Inicio** (`/inicio`, nuevo 13/09/2026): resumen con total, pendientes y completados, y los últimos documentos registrados. El login ya no redirige a `/carpetas`.
+- **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
+- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
 - **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
@@ -22,13 +24,28 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 Ninguno de estos bloquea el uso básico del sistema.
 
+## Pantalla de inicio (13/09/2026)
+
+Ruta: `/inicio`. Es la primera opción del menú. Después del login —y si ya hay sesión en `/` o `/login`— se entra aquí, no a `/carpetas`.
+
+Muestra:
+
+- **Total:** `GET /documents?page=1&per_page=8`, usando el campo `total`.
+- **Pendientes:** el mismo listado con `status_filter=pending` (solo se usa el total).
+- **Completados:** `status_filter=completed`.
+- **Actividad reciente:** los 8 documentos de la primera petición, ya ordenados por `created_at desc` (ubicación, período y estado).
+
+Archivos: `frontend/src/app/(dashboard)/inicio/page.tsx`, link en `Sidebar.tsx`, redirección en `login/page.tsx` y `middleware.ts`.
+
+Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`. Esto no unifica Carpetas y Ubicación; esa decisión sigue pendiente.
+
 > ⚠️ Nota para quien construyó `DocumentEditModal`: detectamos y corregimos (07/09/2026) un bug del backend que afectaba directamente a este modal — `PATCH /documents/{id}` ignoraba en silencio cualquier campo enviado explícitamente como `null` (por ejemplo, para quitarle la carpeta a un documento, o borrar el mes final del período). Ya está corregido en `main`; si probaste "borrar carpeta" o "borrar período" antes del 07/09 y no funcionó, ya debería andar bien ahora.
 
 ## Ideas de diseño de referencia (31/08/2026)
 
 Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
 
-5. **Dashboard/inicio con resumen y "actividad reciente"** — hoy el login redirige directo a `/carpetas`; no existe ninguna pantalla de inicio. Se podría armar una página `/` (o `/inicio`) con: tarjetas de resumen (total de documentos, pendientes, completados), y una lista de los últimos 5-10 documentos actualizados (`GET /documents?per_page=5` ordenado por fecha, que ya viene ordenado por `created_at desc`).
+5. ~~Dashboard/inicio con resumen y "actividad reciente"~~ — **ya construido** como `/inicio` (13/09/2026): tarjetas de total, pendientes y completados, y los últimos documentos (`GET /documents` ordenado por `created_at desc`). El login redirige ahí.
 6. ~~Mapa visual de estantes~~ — **ya construido** como la pantalla `/ubicacion` (10/09/2026), navega estante → división → columna → tomo con `GET /documents/locations`.
 7. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
 8. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
