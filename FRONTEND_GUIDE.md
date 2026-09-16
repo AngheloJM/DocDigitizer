@@ -2,13 +2,13 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-<<<<<<< HEAD
+
 ## Estado actual (2026-09-13)
 =======
 > 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
 ## Estado actual (2026-09-10)
->>>>>>> origin/main
+
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
