@@ -17,7 +17,8 @@ async def lifespan(app: FastAPI):
             "worker",
             "--loglevel=info",
             "--concurrency=1",
-            "--pool=solo",
+            "--pool=prefork",
+            "-B",
         ]
     )
     yield
