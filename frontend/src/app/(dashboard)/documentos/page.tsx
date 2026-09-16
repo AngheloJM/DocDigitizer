@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
 import { useAuth } from "@/components/providers/AuthProvider";
@@ -38,8 +38,7 @@ function DocumentosContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(openUpload);
-  const [title, setTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+
   const [yearFilter, setYearFilter] = useState("");
   const [monthFromFilter, setMonthFromFilter] = useState("");
   const [monthToFilter, setMonthToFilter] = useState("");
@@ -52,6 +51,13 @@ function DocumentosContent() {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
   const listRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!openUpload) return;
+    setEditingDocument(null);
+    setUploading(true);
+    router.replace("/documentos", { scroll: false });
+  }, [openUpload, router]);
 
   const usersById = useMemo(() => {
     const map = new Map<string, User>();
@@ -129,24 +135,6 @@ function DocumentosContent() {
     return () => window.clearInterval(timer);
   }, [items]);
 
-  async function onUpload(event: FormEvent) {
-    event.preventDefault();
-    if (!file || !title.trim()) return;
-    const form = new FormData();
-    form.append("file", file);
-    form.append("title", title.trim());
-    try {
-      await backend.documents.upload(form);
-      setTitle("");
-      setFile(null);
-      setUploading(false);
-      router.replace("/documentos");
-      if (pagina === 1) await load();
-      else setPagina(1);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo subir el documento");
-    }
-  }
 
   function openScanPicker(docId: string) {
     setScanDocId(docId);
@@ -188,11 +176,22 @@ function DocumentosContent() {
     );
   }
 
-  function handleDocumentSaved(updated: DocumentItem) {
-    setItems((current) =>
-      current.map((item) => (item.id === updated.id ? updated : item)),
-    );
+  function handleDocumentSaved() {
+    const wasCreating = uploading;
+    setUploading(false);
     setEditingDocument(null);
+
+    if (wasCreating && pagina !== 1) {
+      setPagina(1);
+      return;
+    }
+    void load();
+  }
+
+  function handleDocumentModalClose() {
+    setUploading(false);
+    setEditingDocument(null);
+    void load();
   }
 
   async function onAssign(docId: string, assignedToId: string) {
@@ -258,7 +257,10 @@ function DocumentosContent() {
         </div>
         <button
           type="button"
-          onClick={() => setUploading((value) => !value)}
+          onClick={() => {
+            setEditingDocument(null);
+            setUploading(true);
+          }}
           className="w-full sm:w-auto shrink-0 min-h-11 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
         >
           <Icon name="upload" className="text-lg" /> Subir documento
@@ -362,53 +364,6 @@ function DocumentosContent() {
           </select>
         </div>
       </div>
-
-      {uploading && (
-        <form
-          onSubmit={onUpload}
-          className="bg-white rounded-2xl p-5 border border-outline-variant mb-6 space-y-4"
-        >
-          <h3 className="text-sm font-semibold text-on-surface">Carga en un paso</h3>
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
-              Título
-            </label>
-            <input
-              required
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
-              Archivo
-            </label>
-            <input
-              required
-              type="file"
-              accept=".png,.jpg,.jpeg,.tiff,.bmp,.pdf"
-              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              className="w-full text-sm"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="bg-primary text-white text-sm font-medium py-2 px-4 rounded-2xl hover:bg-primary-light"
-            >
-              Subir
-            </button>
-            <button
-              type="button"
-              onClick={() => setUploading(false)}
-              className="border border-outline-variant text-sm py-2 px-4 rounded-2xl"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
-      )}
 
       {error && (
         <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>
@@ -518,7 +473,10 @@ function DocumentosContent() {
                           {canEditDocument(doc) && (
                             <button
                               type="button"
-                              onClick={() => setEditingDocument(doc)}
+                              onClick={() => {
+                                setUploading(false);
+                                setEditingDocument(doc);
+                              }}
                               className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                               title="Editar documento"
                               aria-label={`Editar ${doc.title}`}
@@ -583,12 +541,16 @@ function DocumentosContent() {
         )}
       </div>
 
-      <DocumentEditModal
-        open={editingDocument !== null}
-        document={editingDocument}
-        onClose={() => setEditingDocument(null)}
-        onSaved={handleDocumentSaved}
-      />
+      {user && (uploading || editingDocument !== null) && (
+        <DocumentEditModal
+          key={editingDocument?.id ?? "create"}
+          open
+          document={editingDocument}
+          ownerId={user.id}
+          onClose={handleDocumentModalClose}
+          onSaved={handleDocumentSaved}
+        />
+      )}
     </>
   );
 }
