@@ -20,4 +20,4 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-CMD ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=1", "--pool=solo"]
+CMD ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--concurrency=1", "--pool=prefork", "-B"]
