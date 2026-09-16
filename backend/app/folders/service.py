@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
@@ -10,6 +11,10 @@ from app.folders.schemas import FolderCreate, FolderUpdate
 
 
 class InvalidParentError(Exception):
+    pass
+
+
+class FolderNotEmptyError(Exception):
     pass
 
 
@@ -106,4 +111,10 @@ async def update_folder(db: AsyncSession, folder: Folder, data: FolderUpdate) ->
 
 async def delete_folder(db: AsyncSession, folder: Folder) -> None:
     await db.delete(folder)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError as error:
+        await db.rollback()
+        raise FolderNotEmptyError(
+            "No se puede eliminar: la carpeta tiene subcarpetas o documentos dentro"
+        ) from error

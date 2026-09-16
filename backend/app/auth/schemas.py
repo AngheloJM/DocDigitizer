@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
 class UserAdminUpdate(BaseModel):
     role: str | None = Field(default=None, pattern="^(student|admin)$")
     is_active: bool | None = None
+    password: str | None = Field(default=None, min_length=8)
 
 
 class UserListResponse(BaseModel):

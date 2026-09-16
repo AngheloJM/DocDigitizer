@@ -1,7 +1,7 @@
 import hashlib
 import io
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -134,14 +134,18 @@ def _owned_or_assigned(requesting_user: User):
     )
 
 
-async def get_document(db: AsyncSession, document_id: uuid.UUID, requesting_user: User) -> Document | None:
+async def get_document(
+    db: AsyncSession, document_id: uuid.UUID, requesting_user: User, include_deleted: bool = False
+) -> Document | None:
+    conditions = [Document.id == document_id]
+    if not include_deleted:
+        conditions.append(Document.deleted_at.is_(None))
+
     if is_staff(requesting_user):
-        result = await db.execute(select(Document).where(Document.id == document_id))
+        result = await db.execute(select(Document).where(*conditions))
     else:
         result = await db.execute(
-            select(Document).where(
-                Document.id == document_id, _owned_or_assigned(requesting_user)
-            )
+            select(Document).where(*conditions, _owned_or_assigned(requesting_user))
         )
     return result.scalar_one_or_none()
 
@@ -163,9 +167,14 @@ async def list_documents(
     assigned_to_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
+    include_deleted: bool = False,
 ) -> tuple[list[Document], int]:
     query = select(Document)
     count_query = select(func.count()).select_from(Document)
+
+    if not include_deleted:
+        query = query.where(Document.deleted_at.is_(None))
+        count_query = count_query.where(Document.deleted_at.is_(None))
 
     if is_staff(requesting_user):
         if owner_id is not None:
@@ -239,7 +248,9 @@ async def get_location_tree(
     depth = next((index for index, value in enumerate(given) if value is None), len(given))
     group_column = _LOCATION_LEVELS[depth]
 
-    query = select(group_column, func.count()).where(group_column.isnot(None))
+    query = select(group_column, func.count()).where(
+        group_column.isnot(None), Document.deleted_at.is_(None)
+    )
 
     if not is_staff(requesting_user):
         query = query.where(_owned_or_assigned(requesting_user))
@@ -400,6 +411,8 @@ async def get_downloadable_file(db: AsyncSession, document: Document) -> tuple[b
 
 
 async def delete_document(db: AsyncSession, document: Document) -> None:
+    """Borrado fisico e irreversible (fila y archivos en MinIO). Usado internamente
+    para limpieza de datos; la API expone soft_delete_document en su lugar."""
     original_image = (
         await db.execute(select(OriginalImage).where(OriginalImage.document_id == document.id))
     ).scalar_one_or_none()
@@ -414,6 +427,20 @@ async def delete_document(db: AsyncSession, document: Document) -> None:
         delete_object(settings.minio_bucket_originals, original_image.minio_path)
     for generated_pdf in generated_pdfs:
         delete_object(settings.minio_bucket_processed, generated_pdf.minio_path)
+
+
+async def soft_delete_document(db: AsyncSession, document: Document) -> Document:
+    document.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(document)
+    return document
+
+
+async def restore_document(db: AsyncSession, document: Document) -> Document:
+    document.deleted_at = None
+    await db.commit()
+    await db.refresh(document)
+    return document
 
 
 async def log_audit_action(
@@ -455,7 +482,7 @@ async def search_documents(
     base_query = (
         select(Document, ExtractedText)
         .join(ExtractedText, ExtractedText.document_id == Document.id)
-        .where(matches)
+        .where(matches, Document.deleted_at.is_(None))
     )
 
     if is_staff(requesting_user):

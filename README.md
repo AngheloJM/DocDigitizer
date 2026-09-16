@@ -17,7 +17,7 @@ Sistema de gestión, digitalización y organización automatizada de documentos.
 - Terminar las pantallas pendientes del frontend (ver lista priorizada en [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)).
 - Subir los escaneos reales de los 289 documentos migrados conforme se vayan digitalizando.
 - Definir el despliegue definitivo: se van a preparar dos guías de despliegue al cierre del proyecto — una para seguir en la nube (como está ahora, pero en planes pagos sin las limitaciones del free tier) y otra para instalarlo completamente dentro de la infraestructura de la universidad (on-premise), por si UTEPSA prefiere no depender de servicios externos. Todavía no está decidido cuál de las dos se va a usar en definitiva.
-- Endurecer detalles de seguridad y rendimiento que hoy están simplificados por ser un entorno de pruebas (por ejemplo, las reglas de acceso entre el frontend y el backend, y los límites de intentos en ciertas acciones).
+- Endurecer detalles de seguridad y rendimiento que hoy están simplificados por ser un entorno de pruebas — pendiente principal: las reglas de acceso (CORS) entre el frontend y el backend en producción, hoy abiertas (`*`) hasta confirmar que el frontend quedó estable. Los límites de intentos (rate limiting) ya se extendieron a prácticamente todos los endpoints sensibles (14/09/2026) — ver [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md).
 
 Si sos usuario del sistema y tenés dudas sobre cuándo vas a poder usarlo de forma definitiva o qué va a pasar con tus datos actuales, consultá con el equipo del proyecto — este documento se actualiza a medida que avanza el desarrollo.
 
@@ -83,7 +83,7 @@ No hay auto-registro público. Las cuentas siempre las crea alguien del staff (`
 | GET | `/api/v1/auth/me` | Devuelve el usuario autenticado (requiere header `Authorization: Bearer <token>`) |
 | GET | `/api/v1/auth/users` | Lista usuarios que puedes gestionar (`admin` ve `student`; `super_admin` ve `admin` y `student`). Filtro opcional `role_filter` |
 | GET | `/api/v1/auth/users/{id}` | Detalle de un usuario que puedes gestionar (404 si no está en tu alcance) |
-| PATCH | `/api/v1/auth/users/{id}` | Cambia `role` y/o `is_active` (desactivar/reactivar). Un usuario desactivado no puede loguearse (403) y sus tokens ya emitidos dejan de servir en la siguiente petición |
+| PATCH | `/api/v1/auth/users/{id}` | Cambia `role`, `is_active` y/o `password` (reseteo, solo `super_admin`). Un usuario desactivado no puede loguearse (403) y sus tokens ya emitidos dejan de servir en la siguiente petición |
 
 El `access_token` (JWT) dura 15 minutos. El `refresh_token` dura 7 días — el frontend debe guardarlo y usarlo contra `/auth/refresh` para renovar la sesión sin pedir contraseña de nuevo, y actualizar ambos tokens guardados cada vez (rotación).
 
@@ -136,7 +136,8 @@ Para que el procesamiento corra, el worker debe estar levantado: `docker compose
 | GET | `/api/v1/documents/{id}/download` | Descarga el PDF procesado (o el archivo original si aun no termino de procesarse) |
 | POST | `/api/v1/documents/{id}/reprocess` | Vuelve a correr el pipeline (OCR + PDF/A) sobre el archivo ya subido. Falla con 400 si el documento no tiene archivo |
 | PATCH | `/api/v1/documents/{id}` | Actualiza título, descripción, tipo o carpeta |
-| DELETE | `/api/v1/documents/{id}` | Elimina el registro y su archivo en MinIO |
+| DELETE | `/api/v1/documents/{id}` | Soft-delete: marca el documento como borrado (se recupera con `POST /documents/{id}/restore`), no borra el registro ni el archivo |
+| POST | `/api/v1/documents/{id}/restore` | Recupera un documento borrado |
 
 **Ubicación física**: `physical_shelf`, `physical_division`, `physical_column`, `physical_volume` son opcionales — permiten registrar dónde está guardado un documento (estante/división/columna/tomo) sin necesidad de haberlo escaneado todavía. El personal administrativo puede catalogar el archivo físico primero y subir el escaneo de cada uno más adelante (`POST /documents/{id}/upload`).
 
