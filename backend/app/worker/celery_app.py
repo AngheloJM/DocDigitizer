@@ -30,6 +30,12 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    # Por defecto Celery confirma (ack) una tarea apenas el worker la recibe, antes de
+    # ejecutarla. En Render free tier el worker se reinicia seguido (deploys, sleep/wake),
+    # y sin esto una tarea tomada justo antes de un reinicio se pierde para siempre: el
+    # documento queda en 'pending' sin error y sin que nada la vuelva a encolar.
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
 )
 
 broker_ssl_options = _ssl_options_if_needed(settings.celery_broker_url)
