@@ -85,16 +85,16 @@ function DocumentosContent() {
         assignedToId: assignmentFilter === "mine" ? user.id : null,
       });
 
-      if (requestId != listRequestRef.current) return;
+      if (requestId !== listRequestRef.current) return;
 
       setItems(data.items);
       setTotal(data.total);
       setTotalPaginas(data.pages);
     } catch (err) {
-      if (requestId === listRequestRef.current) return;
+      if (requestId !== listRequestRef.current) return;
       setError(err instanceof ApiError ? err.message : "No se pudieron cargar los documentos");
     } finally {
-        setLoading(false);
+      if (requestId === listRequestRef.current) setLoading(false);
     }
   }, [user, pagina, yearFilter, monthFormFilter, monthToFilter,shelfFilter, statusFilter, assignmentFilter]);
 
@@ -455,7 +455,7 @@ function DocumentosContent() {
             aria-label="Listado de documentos; desplázate horizontalmente para ver todas las columnas"
             tabIndex={0}
           >
-            <table className="w-full text-left border-collapse min-width-[980px]">
+            <table className="w-full text-left border-collapse min-w-[980px]">
               <thead>
                 <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
                   <th className="py-3 px-4 font-medium">Título</th>
@@ -499,7 +499,7 @@ function DocumentosContent() {
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
                       </td>
-                      <td className="py-3 px-4 text-on-surface-variant text-xs max-width[220px] warp-break-words">
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] wrap-break-words">
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
@@ -511,7 +511,7 @@ function DocumentosContent() {
                             onChange={(event) => {
                               if (event.target.value) void onAssign(doc.id, event.target.value);
                             }}
-                            className="w-full max-width-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                            className="w-full max-w-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
                           >
                             <option value="">
                               {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
