@@ -28,6 +28,7 @@ function DocumentosContent() {
   const params = useSearchParams();
   const router = useRouter();
   const openUpload = params.get("upload") === "1";
+  const initialQuery = params.get("q")?.trim() ?? "";
   const staff = Boolean(user && isStaff(user.role));
   const canAssign = Boolean(user && canAssignDocuments(user.role));
 
@@ -45,8 +46,8 @@ function DocumentosContent() {
   const [shelfFilter, setShelfFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
@@ -106,15 +107,26 @@ function DocumentosContent() {
 
   function applySearch(event?: FormEvent) {
     event?.preventDefault();
+    const next = searchInput.trim();
     setPagina(1);
-    setSearchQuery(searchInput.trim());
+    setSearchQuery(next);
+    const url = next ? `/documentos?q=${encodeURIComponent(next)}` : "/documentos";
+    router.replace(url);
   }
 
   function clearSearch() {
     setSearchInput("");
     setSearchQuery("");
     setPagina(1);
+    router.replace("/documentos");
   }
+
+  useEffect(() => {
+    const nextQuery = params.get("q")?.trim() ?? "";
+    setSearchInput(nextQuery);
+    setSearchQuery(nextQuery);
+    if (nextQuery) setPagina(1);
+  }, [params]);
 
   useEffect(() => {
     void loadUsers();

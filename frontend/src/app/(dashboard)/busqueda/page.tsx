@@ -21,6 +21,7 @@ import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
 import {
+  canUseAdvancedSearch,
   formatArchivedPeriod,
   formatPhysicalLocation,
   isStaff,
@@ -109,6 +110,12 @@ function BusquedaContent() {
   const [foldersLoading, setFoldersLoading] = useState(false);
   const [foldersError, setFoldersError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+
+  useEffect(() => {
+    if (user && !canUseAdvancedSearch(user.role)) {
+      router.replace("/documentos");
+    }
+  }, [user, router]);
 
   const dateError = useMemo(() => {
     if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) {

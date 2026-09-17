@@ -94,7 +94,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 export const ROLE_DESCRIPTION: Record<Role, string> = {
-  student: "Ve y gestiona lo suyo, o lo que le hayan asignado.",
+  student: "Solo ve Documentos: lo suyo o lo asignado. Busca ahí mismo, sin otras pestañas.",
   admin: "Gestiona usuarios y los documentos/carpetas de todos.",
   super_admin:
     "Igual que un administrador, además puede crear administradores y cambiar roles.",
@@ -135,6 +135,15 @@ export function canCreateAdmin(role: Role) {
 
 /** Solo staff asigna documentos a otras personas. */
 export function canAssignDocuments(role: Role) {
+  return isStaff(role);
+}
+
+/** Staff puede navegar archivo físico, carpetas y búsqueda avanzada. */
+export function canBrowseArchive(role: Role) {
+  return isStaff(role);
+}
+
+export function canUseAdvancedSearch(role: Role) {
   return isStaff(role);
 }
 

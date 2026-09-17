@@ -2,14 +2,21 @@
 
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import type { DocumentItem, Folder } from "@/lib/types";
-import { formatArchivedPeriod, formatPhysicalLocation, needsScanUpload } from "@/lib/types";
+import {
+  canBrowseArchive,
+  formatArchivedPeriod,
+  formatPhysicalLocation,
+  needsScanUpload,
+} from "@/lib/types";
 
 function CarpetasContent() {
+  const { user } = useAuth();
   const params = useSearchParams();
   const router = useRouter();
   const parentId = params.get("parent_id");
@@ -23,6 +30,12 @@ function CarpetasContent() {
   const [description, setDescription] = useState("");
   const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    if (user && !canBrowseArchive(user.role)) {
+      router.replace("/documentos");
+    }
+  }, [user, router]);
 
   const load = useCallback(async () => {
     setError(null);

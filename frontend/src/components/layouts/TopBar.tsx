@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useUi } from "@/components/providers/UiProvider";
-import { initials, ROLE_LABEL } from "@/lib/types";
+import { canUseAdvancedSearch, initials, ROLE_LABEL } from "@/lib/types";
 
 export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
   const { user, logout, loading } = useAuth();
@@ -29,7 +29,11 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
     event.preventDefault();
     const value = query.trim();
     if (!value) return;
-    router.push(`/busqueda?q=${encodeURIComponent(value)}`);
+    if (user && canUseAdvancedSearch(user.role)) {
+      router.push(`/busqueda?q=${encodeURIComponent(value)}`);
+      return;
+    }
+    router.push(`/documentos?q=${encodeURIComponent(value)}`);
   }
 
   return (
