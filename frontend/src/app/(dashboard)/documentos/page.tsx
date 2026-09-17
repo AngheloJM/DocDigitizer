@@ -45,6 +45,8 @@ function DocumentosContent() {
   const [shelfFilter, setShelfFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
@@ -71,6 +73,18 @@ function DocumentosContent() {
     if (!user) return;
     setError(null);
     try {
+      if (searchQuery.trim()) {
+        const data = await backend.search({
+          q: searchQuery.trim(),
+          page: pagina,
+          perPage: PAGI_SIZE,
+        });
+        setItems(data.items.map((row) => row.document));
+        setTotal(data.total);
+        setTotalPaginas(data.pages);
+        return;
+      }
+
       const data = await backend.documents.list({
         page: pagina,
         perPage: PAGI_SIZE,
@@ -88,7 +102,19 @@ function DocumentosContent() {
     } finally {
       setLoading(false);
     }
-  }, [user, pagina, yearFilter, shelfFilter, statusFilter, assignmentFilter]);
+  }, [user, pagina, yearFilter, shelfFilter, statusFilter, assignmentFilter, searchQuery]);
+
+  function applySearch(event?: FormEvent) {
+    event?.preventDefault();
+    setPagina(1);
+    setSearchQuery(searchInput.trim());
+  }
+
+  function clearSearch() {
+    setSearchInput("");
+    setSearchQuery("");
+    setPagina(1);
+  }
 
   useEffect(() => {
     void loadUsers();
@@ -253,18 +279,56 @@ function DocumentosContent() {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="bg-white rounded-2xl p-4 border border-outline-variant mb-6 space-y-4">
+        <form onSubmit={applySearch} className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 grid w-10 place-items-center text-on-surface-variant">
+              <Icon name="search" className="text-lg" />
+            </div>
+            <input
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Buscar documento por texto..."
+              className="w-full border border-outline-variant rounded-2xl bg-white pl-10 pr-3 py-2.5 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="flex-1 sm:flex-none rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-light transition-colors"
+            >
+              Buscar
+            </button>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="rounded-2xl border border-outline-variant px-4 py-2.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+        </form>
+        {searchQuery ? (
+          <p className="text-xs text-on-surface-variant">
+            Resultados para “{searchQuery}” · {total} documento{total === 1 ? "" : "s"}
+          </p>
+        ) : null}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
             Año archivado
           </label>
           <select
             value={yearFilter}
+            disabled={Boolean(searchQuery)}
             onChange={(event) => {
               setYearFilter(event.target.value);
               setPagina(1);
             }}
-            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="">Todos</option>
             {YEAR_OPTIONS.map((year) => (
@@ -280,12 +344,13 @@ function DocumentosContent() {
           </label>
           <input
             value={shelfFilter}
+            disabled={Boolean(searchQuery)}
             onChange={(event) => {
               setShelfFilter(event.target.value);
               setPagina(1);
             }}
             placeholder="Ej: A1"
-            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           />
         </div>
         <div>
@@ -294,11 +359,12 @@ function DocumentosContent() {
           </label>
           <select
             value={statusFilter}
+            disabled={Boolean(searchQuery)}
             onChange={(event) => {
               setStatusFilter(event.target.value);
               setPagina(1);
             }}
-            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="">Todos</option>
             <option value="pending">Pendiente</option>
@@ -313,15 +379,17 @@ function DocumentosContent() {
           </label>
           <select
             value={assignmentFilter}
+            disabled={Boolean(searchQuery)}
             onChange={(event) => {
               setAssignmentFilter(event.target.value as "all" | "mine");
               setPagina(1);
             }}
-            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full border border-outline-variant rounded-2xl bg-white px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="all">Todos</option>
             <option value="mine">Asignados a mí</option>
           </select>
+        </div>
         </div>
       </div>
 
