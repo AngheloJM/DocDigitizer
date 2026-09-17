@@ -12,7 +12,12 @@ import { Modal } from "@/components/ui/Modal";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import type { ManageableRole, Role, User, UserCreateInput } from "@/lib/types";
-import { MANAGEABLE_ROLES, ROLE_DESCRIPTION, ROLE_LABEL } from "@/lib/types";
+import {
+  canCreateAdmin,
+  MANAGEABLE_ROLES,
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+} from "@/lib/types";
 
 const userSchema = z
   .object({
@@ -85,7 +90,7 @@ export function UserCreateModal({
 
   async function onSubmit(values: UserFormValues) {
     setServerError(null);
-    const role: ManageableRole = currentUserRole === "admin" ? "student" : values.role;
+    const role: ManageableRole = canCreateAdmin(currentUserRole) ? values.role : "student";
     const payload: UserCreateInput = {
       full_name: values.full_name.trim(),
       email: values.email.trim().toLowerCase(),
@@ -163,7 +168,7 @@ export function UserCreateModal({
               </FormField>
 
               <FormField id="user-role" label="Rol" className="sm:col-span-2">
-                {currentUserRole === "super_admin" ? (
+                {canCreateAdmin(currentUserRole) ? (
                   <>
                     <select id="user-role" {...register("role")} className={formControlClass}>
                       {MANAGEABLE_ROLES.map((role) => (
@@ -186,7 +191,7 @@ export function UserCreateModal({
                       {ROLE_LABEL.student}
                     </div>
                     <p className="mt-1.5 text-xs text-on-surface-variant">
-                      {ROLE_DESCRIPTION.student} Un administrador solamente puede crear estudiantes.
+                      {ROLE_DESCRIPTION.student} Un administrador solo puede crear este rol.
                     </p>
                   </>
                 )}

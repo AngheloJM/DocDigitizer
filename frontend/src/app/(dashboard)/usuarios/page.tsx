@@ -10,7 +10,7 @@ import { backend } from "@/lib/backend";
 import { RoleBadge } from "@/components/users/RoleBadge";
 import {
   canChangeRoles,
-  isStaff,
+  canManageUsers,
   ROLE_DESCRIPTION,
   type Role,
   type User,
@@ -40,7 +40,7 @@ export default function UsuariosPage() {
   }, []);
 
   useEffect(() => {
-    if (user && isStaff(user.role)) void load();
+    if (user && canManageUsers(user.role)) void load();
     else setLoading(false);
   }, [user, load]);
 
@@ -65,7 +65,7 @@ export default function UsuariosPage() {
     return <p className="text-sm text-on-surface-variant">Cargando sesión...</p>;
   }
 
-  if (user && !isStaff(user.role)) {
+  if (user && !canManageUsers(user.role)) {
     return (
       <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2">
         No tienes permiso para ver la administración de usuarios.

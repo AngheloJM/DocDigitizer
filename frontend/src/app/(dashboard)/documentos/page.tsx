@@ -10,6 +10,8 @@ import { Pagina } from "@/components/ui/paginacion";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import {
+  canAssignDocuments,
+  canEditDocument,
   formatArchivedPeriod,
   formatPhysicalLocation,
   isStaff,
@@ -27,6 +29,7 @@ function DocumentosContent() {
   const router = useRouter();
   const openUpload = params.get("upload") === "1";
   const staff = Boolean(user && isStaff(user.role));
+  const canAssign = Boolean(user && canAssignDocuments(user.role));
 
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -168,13 +171,9 @@ function DocumentosContent() {
     }
   }
 
-  function canEditDocument(document: DocumentItem) {
+  function canEdit(document: DocumentItem) {
     if (!user) return false;
-    return (
-      isStaff(user.role) ||
-      document.user_id === user.id ||
-      document.assigned_to_id === user.id
-    );
+    return canEditDocument(user.role, user.id, document);
   }
 
   function handleDocumentSaved(updated: DocumentItem) {
@@ -441,7 +440,7 @@ function DocumentosContent() {
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
-                        {staff ? (
+                        {canAssign ? (
                           <select
                             value={doc.assigned_to_id ?? ""}
                             disabled={assigningId === doc.id}
@@ -473,7 +472,7 @@ function DocumentosContent() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className="inline-flex items-center gap-1 justify-end">
-                          {canEditDocument(doc) && (
+                          {canEdit(doc) && (
                             <button
                               type="button"
                               onClick={() => setEditingDocument(doc)}
@@ -484,7 +483,7 @@ function DocumentosContent() {
                               <Icon name="edit" className="text-lg" />
                             </button>
                           )}
-                          {needsScanUpload(doc.status) && (
+                          {needsScanUpload(doc.status) && canEdit(doc) && (
                             <button
                               type="button"
                               onClick={() => openScanPicker(doc.id)}
@@ -496,7 +495,7 @@ function DocumentosContent() {
                             </button>
                           )}
 
-                          {doc.status === "completed" && canEditDocument(doc) && (
+                          {doc.status === "completed" && canEdit(doc) && (
                           <button
                            type="button"
                             onClick={() => void onReprocess(doc.id)}
