@@ -2,7 +2,9 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-## Estado actual (2026-09-13)
+> 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
+
+## Estado actual (2026-09-17)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
@@ -10,7 +12,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 - **Inicio** (`/inicio`, nuevo 13/09/2026): resumen con total, pendientes y completados, y los últimos documentos registrados. El login ya no redirige a `/carpetas`.
 - **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
 - **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
-- **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Documentos** (`/documentos`): listar con filtros (año archivado, rango de mes archivado, estante, estado, asignación — nuevo 17/09/2026), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
@@ -20,7 +22,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 **⏳ Pendiente — prioridad media:**
 
 1. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
-2. **Filtro por rango de meses** en `/documentos` — el backend ya soporta `?archived_month_from=&archived_month_to=` (ver sección 3), falta el selector en la UI (hoy solo hay filtro por año exacto).
+2. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
 3. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug.
 
 Ninguno de estos bloquea el uso básico del sistema.
@@ -105,14 +107,30 @@ POST /auth/refresh
 ```
 Importante: cada llamada a `/refresh` invalida el `refresh_token` usado y entrega uno nuevo. Guarda siempre el par más reciente (access + refresh), no solo el access. Límite: 30 intentos cada 15 minutos por IP (`429` si se supera) — no debería afectar el uso normal.
 
-**Cerrar sesión (nuevo, 07/09/2026)**
+**Cerrar sesión**
 ```
 POST /auth/logout
 { "refresh_token": "..." }
 
 → 204
 ```
-Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). El `access_token` ya emitido sigue siendo válido hasta que expire solo (máximo 15 minutos) — no hay forma de invalidar un access_token antes de su vencimiento natural, es el trade-off de usar JWT sin estado. El proxy/`api/auth/logout` del frontend debería llamar a este endpoint con el `refresh_token` guardado **antes** de borrar las cookies locales, no solo borrar cookies como hace hoy.
+Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). El proxy/`api/auth/logout` del frontend debería llamar a este endpoint con el `refresh_token` guardado **antes** de borrar las cookies locales, no solo borrar cookies como hace hoy.
+
+> ⚠️ **(nuevo, 14/09/2026) Ya no hace falta trabajar el trade-off de "el access_token sigue vivo tras el logout"**: si el request a `/auth/logout` incluye el header `Authorization: Bearer <access_token>` (el mismo que ya se manda en cualquier otro request autenticado), el backend además invalida ese access_token de inmediato — cualquier uso posterior responde `401`. Es **opcional**: si no se manda el header, el comportamiento es igual que antes (solo se revoca el refresh_token). Recomendación: que el logout del frontend mande el header, así el cierre de sesión es inmediato de verdad y no depende de esperar los ~15 minutos de vida del access_token.
+
+**Cerrar todas las sesiones (nuevo, 14/09/2026)**
+```
+POST /auth/logout-all
+→ 204 (requiere Authorization: Bearer <access_token>)
+```
+Cierra **todas** las sesiones activas del usuario autenticado de una sola vez (todos los refresh tokens + todos los access tokens ya emitidos, sin importar desde qué dispositivo/pestaña se hayan generado). Útil para un botón de "cerrar sesión en todos los dispositivos".
+
+**Revocar sesiones de otro usuario (nuevo, 14/09/2026, solo admin/super_admin)**
+```
+POST /auth/users/{id}/revoke-sessions
+→ 204
+```
+Mismo efecto que `logout-all` pero forzado por un admin/super_admin sobre un usuario que gestiona (ej. sospecha de cuenta comprometida). Respeta la misma regla de "quién gestiona a quién" que ya usa `PATCH /auth/users/{id}`.
 
 **Usuario actual**
 ```
@@ -123,11 +141,13 @@ GET /auth/me
 
 **Gestionar usuarios existentes** (solo `admin`/`super_admin`):
 ```
-GET   /auth/users?role_filter=&page=&per_page=   → 200 { items, total, page, pages }
-GET   /auth/users/{id}                            → 200 (404 si no esta en tu alcance)
-PATCH /auth/users/{id}   { role?, is_active? }     → 200
+GET   /auth/users?role_filter=&page=&per_page=            → 200 { items, total, page, pages }
+GET   /auth/users/{id}                                     → 200 (404 si no esta en tu alcance)
+PATCH /auth/users/{id}   { role?, is_active?, password? }   → 200
 ```
 Un `admin` solo ve/gestiona `student`; un `super_admin` ve/gestiona `admin` y `student` (nadie ve otros `super_admin` por API). Desactivar a alguien (`is_active: false`) le bloquea el login inmediatamente (403) y también invalida cualquier sesión que ya tuviera abierta.
+
+> 🔑 **(nuevo, 14/09/2026) Reseteo de contraseña**: `PATCH /auth/users/{id}` ahora acepta `password` (string, mínimo 8 caracteres) para fijarle una contraseña nueva a otro usuario. **Solo `super_admin`** puede mandar este campo — un `admin` normal que lo intente recibe `403`. No hay flujo de "olvidé mi contraseña" por email (decisión del equipo: no se quiere integrar un servicio de correo); es un reseteo manual — el super_admin fija la contraseña y se la comunica a la persona por otro medio. Al resetear, se cierran automáticamente todas las sesiones activas de esa persona (mismo mecanismo que `revoke-sessions`), así que tiene que volver a loguearse con la contraseña nueva.
 
 **Crear usuario nuevo** (solo `admin`/`super_admin`):
 ```
@@ -203,16 +223,23 @@ Todos estos campos (`physical_*` y `archived_*`) se pueden pasar en la creación
 
 **Resto de endpoints:**
 ```
-GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&physical_division=&physical_column=&physical_volume=&archived_year=&archived_month_from=&archived_month_to=&owner_id=&assigned_to_id=  → 200 { items, total, page, pages }
+GET    /documents?page=&per_page=&folder_id=&status_filter=&doc_type=&physical_shelf=&physical_division=&physical_column=&physical_volume=&archived_year=&archived_month_from=&archived_month_to=&owner_id=&assigned_to_id=&include_deleted=  → 200 { items, total, page, pages }
 GET    /documents/{id}                                                  → 200 (incluye original_image/generated_pdf/extracted_text si existen)
-GET    /documents/{id}/status                                           → 200 { status, processed_at }
-GET    /documents/{id}/download                                         → 200, archivo (PDF procesado, o el original si aun no termino)
+GET    /documents/{id}/status                                           → 200 { status, processed_at, error_message }
+GET    /documents/{id}/download                                        → 200, archivo (PDF procesado, o el original si aun no termino)
 POST   /documents/{id}/reprocess                                        → 202 { document_id, task_id, status: "reprocessing" }
 PATCH  /documents/{id}      { title?, description?, doc_type?, folder_id?, assigned_to_id? }  → 200
-DELETE /documents/{id}                                                  → 204 (borra tambien el archivo de MinIO)
+DELETE /documents/{id}                                                  → 204 (soft-delete, ver nota abajo)
+POST   /documents/{id}/restore                                          → 200, recupera un documento borrado
 ```
 
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
+
+> ⚙️ **(nuevo, 14/09/2026) Reintentos automáticos**: si el procesamiento falla por algo transitorio (ej. una caída momentánea de almacenamiento), el backend reintenta solo hasta 3 veces con backoff (30s/60s/120s) antes de marcar `failed`. Mientras tanto el documento se queda en `status: "processing"` — el polling que ya tenían sigue funcionando igual, solo puede tardar un poco más en algunos casos raros antes de llegar a `completed` o `failed`. No hace falta cambiar nada en el frontend por esto.
+>
+> 📋 **(nuevo, 14/09/2026) Motivo del fallo visible**: `GET /documents/{id}/status` y el detalle del documento (`GET /documents/{id}`) ahora traen `error_message` (string o `null`). Antes, cuando un documento quedaba en `failed`, no había forma de saber por qué desde el frontend — ahora se puede mostrar el motivo (ej. "El documento no tiene un archivo original asociado") en vez de un genérico "algo salió mal".
+>
+> 🗑️ **(nuevo, 14/09/2026) Borrar documentos ya no es irreversible**: `DELETE /documents/{id}` pasó a ser un soft-delete — el documento y sus archivos en MinIO se conservan, solo se marca `deleted_at` y deja de aparecer en listados/búsqueda/detalle. `POST /documents/{id}/restore` lo recupera (responde el documento actualizado, con `deleted_at: null`). Si quieren armar una vista de "papelera", `GET /documents?include_deleted=true` la trae (solo tiene efecto para `admin`/`super_admin`; un `student` que lo pase se ignora silenciosamente y ve lo de siempre).
 
 **Filtro por rango de meses (nuevo, 07/09/2026):** `?archived_month_from=` y `?archived_month_to=` (ambos 1-12, ambos opcionales, se pueden usar solo, o los dos juntos). Filtra por el período archivado del documento (`archived_month_start`/`archived_month_end`), sin importar el año — combínalo con `?archived_year=` si además querés acotar a un año puntual. Ej: `?archived_month_from=3&archived_month_to=7` trae los documentos cuyo período se solapa con marzo-julio (de cualquier año). Los documentos sin `archived_month_start` (sin período cargado) quedan afuera de este filtro.
 
@@ -237,15 +264,16 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
-- `POST /auth/logout` ya existe (revoca el refresh token) — falta que el frontend lo llame antes de borrar las cookies (ver sección 1).
-- Rate limiting: además de login (5/15min), ahora también hay en `/auth/refresh` (30/15min por IP) y en subidas de documentos (20/hora por usuario). El resto de endpoints todavía no tiene límite.
+- `POST /auth/logout` ya existe (revoca el refresh token) — falta que el frontend lo llame antes de borrar las cookies, y de paso mande el header `Authorization` para que también invalide el access_token (ver sección 1).
+- Rate limiting: ya cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). **(actualizado 14/09/2026)** — antes solo cubría login/refresh/uploads.
 
 ## 6. Errores comunes a manejar en el frontend
 
 | Código | Cuándo pasa |
 |---|---|
-| 401 | Token vencido/inválido → intentar refresh, si falla ir a login |
-| 403 | El usuario no tiene permiso para esa acción (ej. `student` intentando crear un usuario) |
-| 404 | El recurso no existe o no te pertenece (no se distingue, por seguridad) |
+| 401 | Token vencido/inválido, **o revocado** (logout, logout-all, revoke-sessions o reseteo de contraseña) → intentar refresh, si falla ir a login |
+| 403 | El usuario no tiene permiso para esa acción (ej. `student` intentando crear un usuario, o `admin` intentando resetear una contraseña) |
+| 404 | El recurso no existe, no te pertenece, o está borrado (soft-delete) — no se distingue, por seguridad |
+| 413 | Archivo declarado en `Content-Length` demasiado grande, se rechaza antes de subirlo entero |
 | 422 | Body inválido (faltó un campo, formato incorrecto) — el detalle viene en `detail` |
-| 429 | Rate limit — login (5/15min), refresh (30/15min por IP), o subida de documentos (20/hora por usuario). El mensaje viene en `detail` |
+| 429 | Rate limit — ver la lista completa en la sección 5. El mensaje viene en `detail` |

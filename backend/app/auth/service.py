@@ -52,10 +52,29 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
     return pwd_context.verify(plain_password, password_hash)
 
 
-def create_access_token(user_id: uuid.UUID) -> str:
+def _user_refresh_tokens_key(user_id: uuid.UUID) -> str:
+    return f"user_refresh_tokens:{user_id}"
+
+
+def _user_access_tokens_key(user_id: uuid.UUID) -> str:
+    return f"user_access_tokens:{user_id}"
+
+
+def _access_token_blacklist_key(jti: str) -> str:
+    return f"access_token_blacklist:{jti}"
+
+
+async def create_access_token(user_id: uuid.UUID) -> str:
+    jti = uuid.uuid4().hex
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(user_id), "exp": expire}
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+    payload = {"sub": str(user_id), "exp": expire, "jti": jti}
+    token = jwt.encode(payload, settings.secret_key, algorithm=settings.jwt_algorithm)
+
+    redis = get_redis_client()
+    tokens_key = _user_access_tokens_key(user_id)
+    await redis.sadd(tokens_key, jti)
+    await redis.expire(tokens_key, timedelta(minutes=settings.jwt_expire_minutes))
+    return token
 
 
 def decode_access_token(token: str) -> uuid.UUID | None:
@@ -66,24 +85,60 @@ def decode_access_token(token: str) -> uuid.UUID | None:
         return None
 
 
+def decode_access_token_claims(token: str) -> dict | None:
+    try:
+        return jwt.decode(token, settings.secret_key, algorithms=[settings.jwt_algorithm])
+    except jwt.InvalidTokenError:
+        return None
+
+
+async def is_access_token_blacklisted(jti: str | None) -> bool:
+    if jti is None:
+        return False
+    redis = get_redis_client()
+    return bool(await redis.exists(_access_token_blacklist_key(jti)))
+
+
+async def blacklist_access_token(token: str) -> None:
+    payload = decode_access_token_claims(token)
+    if payload is None:
+        return
+
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if jti is None or exp is None:
+        return
+
+    ttl_seconds = int(exp - datetime.now(timezone.utc).timestamp())
+    if ttl_seconds <= 0:
+        return
+
+    redis = get_redis_client()
+    await redis.set(_access_token_blacklist_key(jti), "1", ex=ttl_seconds)
+
+
 def _refresh_token_key(token: str) -> str:
     return f"refresh_token:{token}"
 
 
 async def create_refresh_token(user_id: uuid.UUID) -> str:
     token = secrets.token_urlsafe(32)
+    ttl = timedelta(days=settings.refresh_token_expire_days)
     redis = get_redis_client()
-    await redis.set(
-        _refresh_token_key(token),
-        str(user_id),
-        ex=timedelta(days=settings.refresh_token_expire_days),
-    )
+    await redis.set(_refresh_token_key(token), str(user_id), ex=ttl)
+
+    tokens_key = _user_refresh_tokens_key(user_id)
+    await redis.sadd(tokens_key, token)
+    await redis.expire(tokens_key, ttl)
     return token
 
 
 async def revoke_refresh_token(token: str) -> None:
     redis = get_redis_client()
+    user_id_raw = await redis.get(_refresh_token_key(token))
     await redis.delete(_refresh_token_key(token))
+    if user_id_raw is not None:
+        await redis.srem(_user_refresh_tokens_key(user_id_raw), token)
 
 
 async def rotate_refresh_token(token: str) -> uuid.UUID | None:
@@ -94,10 +149,30 @@ async def rotate_refresh_token(token: str) -> uuid.UUID | None:
         return None
 
     await redis.delete(key)
+    await redis.srem(_user_refresh_tokens_key(user_id_raw), token)
     try:
         return uuid.UUID(user_id_raw)
     except ValueError:
         return None
+
+
+async def revoke_all_sessions(user_id: uuid.UUID) -> None:
+    """Invalida todos los refresh tokens activos y los access tokens ya emitidos de un usuario."""
+    redis = get_redis_client()
+
+    refresh_tokens_key = _user_refresh_tokens_key(user_id)
+    refresh_tokens = await redis.smembers(refresh_tokens_key)
+    if refresh_tokens:
+        await redis.delete(*[_refresh_token_key(token) for token in refresh_tokens])
+    await redis.delete(refresh_tokens_key)
+
+    access_tokens_key = _user_access_tokens_key(user_id)
+    jtis = await redis.smembers(access_tokens_key)
+    if jtis:
+        blacklist_ttl = timedelta(minutes=settings.jwt_expire_minutes)
+        for jti in jtis:
+            await redis.set(_access_token_blacklist_key(jti), "1", ex=blacklist_ttl)
+    await redis.delete(access_tokens_key)
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
@@ -209,6 +284,14 @@ async def update_user_admin(
     if data.is_active is not None:
         target_user.is_active = data.is_active
 
+    if data.password is not None:
+        target_user.password_hash = hash_password(data.password)
+
     await db.commit()
     await db.refresh(target_user)
+
+    if data.password is not None:
+        # Forzar a que la persona vuelva a loguearse con la contraseña nueva.
+        await revoke_all_sessions(target_user.id)
+
     return target_user

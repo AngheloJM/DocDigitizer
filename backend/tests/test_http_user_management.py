@@ -100,3 +100,76 @@ async def test_student_cannot_list_users(client, db_session):
     assert response.status_code == 403
 
     await _cleanup(db_session, student)
+
+
+@pytest.mark.asyncio
+async def test_super_admin_can_reset_another_users_password(client, db_session):
+    super_admin = await _make_user(db_session, "super_admin")
+    student = await _make_user(db_session, "student")
+    token = await _login(client, super_admin)
+
+    response = await client.patch(
+        f"/auth/users/{student.id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"password": "clave-nueva-123"},
+    )
+    assert response.status_code == 200
+
+    old_login = await client.post(
+        "/auth/login", json={"email": student.email, "password": "clave-real-123"}
+    )
+    assert old_login.status_code == 401
+
+    new_login = await client.post(
+        "/auth/login", json={"email": student.email, "password": "clave-nueva-123"}
+    )
+    assert new_login.status_code == 200
+
+    await _cleanup(db_session, super_admin, student)
+
+
+@pytest.mark.asyncio
+async def test_admin_cannot_reset_passwords(client, db_session):
+    admin = await _make_user(db_session, "admin")
+    student = await _make_user(db_session, "student")
+    token = await _login(client, admin)
+
+    response = await client.patch(
+        f"/auth/users/{student.id}",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"password": "clave-nueva-123"},
+    )
+    assert response.status_code == 403
+
+    still_works = await client.post(
+        "/auth/login", json={"email": student.email, "password": "clave-real-123"}
+    )
+    assert still_works.status_code == 200
+
+    await _cleanup(db_session, admin, student)
+
+
+@pytest.mark.asyncio
+async def test_password_reset_revokes_existing_sessions(client, db_session):
+    super_admin = await _make_user(db_session, "super_admin")
+    student = await _make_user(db_session, "student")
+    admin_token = await _login(client, super_admin)
+    student_token = await _login(client, student)
+
+    still_valid = await client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {student_token}"}
+    )
+    assert still_valid.status_code == 200
+
+    await client.patch(
+        f"/auth/users/{student.id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"password": "clave-nueva-123"},
+    )
+
+    after_reset = await client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {student_token}"}
+    )
+    assert after_reset.status_code == 401
+
+    await _cleanup(db_session, super_admin, student)

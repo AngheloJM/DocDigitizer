@@ -219,3 +219,104 @@ async def test_refresh_gets_rate_limited_after_repeated_attempts(client):
         assert blocked.status_code == 429
     finally:
         await _clear_refresh_rate_limit_keys()
+
+
+@pytest.mark.asyncio
+async def test_logout_with_bearer_token_blacklists_access_token(client, db_session):
+    user = await _make_user(db_session, "student", password="clave-real-123")
+
+    login = await client.post(
+        "/auth/login", json={"email": user.email, "password": "clave-real-123"}
+    )
+    access_token = login.json()["access_token"]
+    refresh_token = login.json()["refresh_token"]
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    still_valid = await client.get("/auth/me", headers=headers)
+    assert still_valid.status_code == 200
+
+    logout = await client.post(
+        "/auth/logout", json={"refresh_token": refresh_token}, headers=headers
+    )
+    assert logout.status_code == 204
+
+    after_logout = await client.get("/auth/me", headers=headers)
+    assert after_logout.status_code == 401
+
+    await db_session.delete(user)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_logout_all_invalidates_every_active_token(client, db_session):
+    user = await _make_user(db_session, "student", password="clave-real-123")
+
+    login_a = await client.post(
+        "/auth/login", json={"email": user.email, "password": "clave-real-123"}
+    )
+    login_b = await client.post(
+        "/auth/login", json={"email": user.email, "password": "clave-real-123"}
+    )
+    token_a = login_a.json()["access_token"]
+    token_b = login_b.json()["access_token"]
+
+    logout_all = await client.post(
+        "/auth/logout-all", headers={"Authorization": f"Bearer {token_a}"}
+    )
+    assert logout_all.status_code == 204
+
+    assert (await client.get("/auth/me", headers={"Authorization": f"Bearer {token_a}"})).status_code == 401
+    assert (await client.get("/auth/me", headers={"Authorization": f"Bearer {token_b}"})).status_code == 401
+
+    await db_session.delete(user)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_admin_can_revoke_sessions_of_a_manageable_user(client, db_session):
+    admin = await _make_user(db_session, "admin", password="clave-admin-123")
+    student = await _make_user(db_session, "student", password="clave-real-123")
+
+    admin_login = await client.post(
+        "/auth/login", json={"email": admin.email, "password": "clave-admin-123"}
+    )
+    student_login = await client.post(
+        "/auth/login", json={"email": student.email, "password": "clave-real-123"}
+    )
+    admin_token = admin_login.json()["access_token"]
+    student_token = student_login.json()["access_token"]
+
+    response = await client.post(
+        f"/auth/users/{student.id}/revoke-sessions",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 204
+
+    assert (
+        await client.get("/auth/me", headers={"Authorization": f"Bearer {student_token}"})
+    ).status_code == 401
+
+    await db_session.delete(admin)
+    await db_session.delete(student)
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_student_cannot_revoke_sessions(client, db_session):
+    student = await _make_user(db_session, "student", password="clave-real-123")
+    other_student = await _make_user(db_session, "student", password="clave-otra-123")
+
+    login = await client.post(
+        "/auth/login", json={"email": student.email, "password": "clave-real-123"}
+    )
+    token = login.json()["access_token"]
+
+    response = await client.post(
+        f"/auth/users/{other_student.id}/revoke-sessions",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
+
+    await db_session.delete(student)
+    await db_session.delete(other_student)
+    await db_session.commit()

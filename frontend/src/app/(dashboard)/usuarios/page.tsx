@@ -67,7 +67,7 @@ export default function UsuariosPage() {
   return (
     <>
       <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
+        <div className="min-w-0">
           <h2 className="mb-2 text-2xl font-semibold tracking-tight text-on-surface md:text-[28px]">
             Administración
           </h2>
@@ -80,7 +80,7 @@ export default function UsuariosPage() {
           type="button"
           onClick={() => setCreateOpen(true)}
           disabled={!user}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           <Icon name="person_add" className="text-lg" />
           Nuevo usuario
@@ -89,13 +89,18 @@ export default function UsuariosPage() {
 
       {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
-      <div className="bg-white rounded-2xl border border-outline-variant">
+      <div className="min-w-0 max-w-full bg-white rounded-2xl border border-outline-variant">
         {loading ? (
           <div className="py-8 text-center text-sm text-on-surface-variant">Cargando usuarios...</div>
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-sm text-on-surface-variant">No hay usuarios en tu alcance.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div
+            className="max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary"
+            role="region"
+            aria-label="Listado de usuarios; desplázate horizontalmente para ver todas las columnas"
+            tabIndex={0}
+          >
             <table className="w-full min-w-[760px] text-left border-collapse">
               <thead>
                 <tr className="border-b border-outline-variant text-[11px] text-on-surface-variant uppercase tracking-wider bg-surface-container">
@@ -109,8 +114,8 @@ export default function UsuariosPage() {
               <tbody className="text-sm">
                 {items.map((item) => (
                   <tr key={item.id} className="border-b border-outline-variant hover:bg-surface-container">
-                    <td className="py-3 px-4 font-medium">{item.full_name}</td>
-                    <td className="py-3 px-4 text-on-surface-variant">{item.email}</td>
+                    <td className="max-w-xs break-words py-3 px-4 font-medium">{item.full_name}</td>
+                    <td className="max-w-xs break-words py-3 px-4 text-on-surface-variant">{item.email}</td>
                     <td className="py-3 px-4">{ROLE_LABEL[item.role as Role] ?? item.role}</td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium">
@@ -119,7 +124,7 @@ export default function UsuariosPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center justify-end gap-2">
+                      <div className="inline-flex flex-wrap items-center justify-end gap-2 [&_button]:max-xl:min-h-11">
                         {user?.role === "super_admin" && (
                           <button
                             type="button"
