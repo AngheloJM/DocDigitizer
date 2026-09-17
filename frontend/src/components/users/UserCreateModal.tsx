@@ -12,6 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import type { ManageableRole, Role, User, UserCreateInput } from "@/lib/types";
+import { MANAGEABLE_ROLES, ROLE_DESCRIPTION, ROLE_LABEL } from "@/lib/types";
 
 const userSchema = z
   .object({
@@ -61,11 +62,14 @@ export function UserCreateModal({
     register,
     reset,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: emptyValues,
   });
+
+  const selectedRole = watch("role");
 
   useEffect(() => {
     if (!open) return;
@@ -160,10 +164,18 @@ export function UserCreateModal({
 
               <FormField id="user-role" label="Rol" className="sm:col-span-2">
                 {currentUserRole === "super_admin" ? (
-                  <select id="user-role" {...register("role")} className={formControlClass}>
-                    <option value="student">Estudiante</option>
-                    <option value="admin">Administrador</option>
-                  </select>
+                  <>
+                    <select id="user-role" {...register("role")} className={formControlClass}>
+                      {MANAGEABLE_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {ROLE_LABEL[role]}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-xs text-on-surface-variant">
+                      {ROLE_DESCRIPTION[selectedRole]}
+                    </p>
+                  </>
                 ) : (
                   <>
                     <input type="hidden" {...register("role")} />
@@ -171,10 +183,10 @@ export function UserCreateModal({
                       id="user-role"
                       className={`${formControlClass} bg-surface-container`}
                     >
-                      Estudiante
+                      {ROLE_LABEL.student}
                     </div>
                     <p className="mt-1.5 text-xs text-on-surface-variant">
-                      Un administrador solamente puede crear estudiantes.
+                      {ROLE_DESCRIPTION.student} Un administrador solamente puede crear estudiantes.
                     </p>
                   </>
                 )}

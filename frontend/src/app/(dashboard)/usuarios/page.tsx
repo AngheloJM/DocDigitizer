@@ -7,7 +7,16 @@ import { UserRoleModal } from "@/components/users/UserRoleModal";
 import { Icon } from "@/components/ui/Icon";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { isStaff, ROLE_LABEL, type Role, type User } from "@/lib/types";
+import { RoleBadge } from "@/components/users/RoleBadge";
+import {
+  canChangeRoles,
+  isStaff,
+  ROLE_DESCRIPTION,
+  type Role,
+  type User,
+} from "@/lib/types";
+
+const ROLE_ORDER: Role[] = ["student", "admin", "super_admin"];
 
 export default function UsuariosPage() {
   const { user, loading: authLoading } = useAuth();
@@ -87,6 +96,20 @@ export default function UsuariosPage() {
         </button>
       </div>
 
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        {ROLE_ORDER.map((role) => (
+          <div
+            key={role}
+            className="rounded-2xl border border-outline-variant bg-white p-4"
+          >
+            <RoleBadge role={role} />
+            <p className="mt-3 text-sm leading-relaxed text-on-surface-variant">
+              {ROLE_DESCRIPTION[role]}
+            </p>
+          </div>
+        ))}
+      </div>
+
       {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
 
       <div className="bg-white rounded-2xl border border-outline-variant">
@@ -111,7 +134,9 @@ export default function UsuariosPage() {
                   <tr key={item.id} className="border-b border-outline-variant hover:bg-surface-container">
                     <td className="py-3 px-4 font-medium">{item.full_name}</td>
                     <td className="py-3 px-4 text-on-surface-variant">{item.email}</td>
-                    <td className="py-3 px-4">{ROLE_LABEL[item.role as Role] ?? item.role}</td>
+                    <td className="py-3 px-4">
+                      <RoleBadge role={item.role} />
+                    </td>
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium">
                         <span className={`w-1.5 h-1.5 rounded-full ${item.is_active ? "bg-emerald-500" : "bg-slate-300"}`} />
@@ -120,7 +145,7 @@ export default function UsuariosPage() {
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex items-center justify-end gap-2">
-                        {user?.role === "super_admin" && (
+                        {user && canChangeRoles(user.role) && (
                           <button
                             type="button"
                             onClick={() => setRoleTarget(item)}

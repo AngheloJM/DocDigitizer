@@ -92,6 +92,15 @@ export const ROLE_LABEL: Record<Role, string> = {
   super_admin: "Super administrador",
 };
 
+export const ROLE_DESCRIPTION: Record<Role, string> = {
+  student: "Ve y gestiona lo suyo, o lo que le hayan asignado.",
+  admin: "Gestiona usuarios estudiante y los documentos/carpetas de todos.",
+  super_admin:
+    "Igual que un administrador, además puede crear administradores y cambiar roles.",
+};
+
+export const MANAGEABLE_ROLES: ManageableRole[] = ["student", "admin"];
+
 export const STATUS_LABEL: Record<string, string> = {
   pending: "Pendiente",
   processing: "Procesando",
@@ -102,6 +111,14 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export function isStaff(role: Role) {
   return role === "admin" || role === "super_admin";
+}
+
+export function isSuperAdmin(role: Role) {
+  return role === "super_admin";
+}
+
+export function canChangeRoles(role: Role) {
+  return role === "super_admin";
 }
 
 export function initials(name: string) {
