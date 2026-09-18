@@ -176,7 +176,11 @@ async def _find_stuck_document_ids(threshold_minutes: int) -> list[uuid.UUID]:
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
     async with SessionLocal() as db:
         result = await db.execute(
-            select(Document.id).where(Document.status == "processing", Document.updated_at < cutoff)
+            select(Document.id).where(
+                Document.status == "processing",
+                Document.updated_at < cutoff,
+                Document.deleted_at.is_(None),
+            )
         )
         return [row[0] for row in result.all()]
 
