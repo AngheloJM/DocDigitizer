@@ -8,10 +8,11 @@ import { useUi } from "@/components/providers/UiProvider";
 import { initials, ROLE_LABEL } from "@/lib/types";
 
 export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, logoutAll, loading } = useAuth();
   const { sidebarCollapsed, toggleSidebar } = useUi();
   const [query, setQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,32 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
     const value = query.trim();
     if (!value) return;
     router.push(`/busqueda?q=${encodeURIComponent(value)}`);
+  }
+
+  async function onLogout() {
+    if (sessionBusy) return;
+    setSessionBusy(true);
+    setShowUserMenu(false);
+    try {
+      await logout();
+    } finally {
+      setSessionBusy(false);
+    }
+  }
+
+  async function onLogoutAll() {
+    if (sessionBusy) return;
+    const ok = window.confirm(
+      "¿Cerrar sesión en todos los dispositivos? Tendrás que volver a iniciar sesión en todos lados.",
+    );
+    if (!ok) return;
+    setSessionBusy(true);
+    setShowUserMenu(false);
+    try {
+      await logoutAll();
+    } finally {
+      setSessionBusy(false);
+    }
   }
 
   return (
@@ -121,8 +148,19 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => void logout()}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-error hover:bg-error-container transition-colors"
+                  disabled={sessionBusy}
+                  onClick={() => void onLogoutAll()}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors disabled:opacity-60"
+                >
+                  <Icon name="devices" className="text-lg" />
+                  Cerrar todas las sesiones
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={sessionBusy}
+                  onClick={() => void onLogout()}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-error hover:bg-error-container transition-colors disabled:opacity-60"
                 >
                   <Icon name="logout" className="text-lg" />
                   Cerrar sesión

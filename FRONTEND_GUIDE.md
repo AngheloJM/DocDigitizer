@@ -16,14 +16,15 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
-- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas** y **cambiar de rol** (solo `super_admin` ve el botón de cambiar rol).
+- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas**, **cambiar de rol**, **resetear contraseña** (solo `super_admin`) y **cerrar sesiones** de otro usuario (staff).
 - Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
+- **Sesión endurecida (18/09/2026):** el logout llama a `POST /auth/logout` (revoca refresh + access si manda `Authorization`); el menú de usuario tiene “Cerrar todas las sesiones” (`POST /auth/logout-all`).
 
-**⏳ Pendiente — prioridad alta (funcionalidad de seguridad del hardening del 14/09 sin usar todavía):**
+**✅ Seguridad de sesión (hardening 14/09, UI lista 18/09/2026):**
 
-1. **El logout del frontend no llama al backend** — hoy `api/auth/logout/route.ts` y `logoutRequest()` solo borran las cookies locales, nunca pegan a `POST /auth/logout`. Esto es más que un detalle: el `refresh_token` real **nunca se revoca en el servidor**, sigue siendo válido 7 días aunque el usuario haya "cerrado sesión". Hay que llamar al endpoint con el `refresh_token` guardado **antes** de borrar las cookies, y de paso mandar el header `Authorization` para que además invalide el `access_token` de inmediato (ver sección 1).
-2. **Sin UI para `logout-all` / `revoke-sessions`** — el backend ya soporta "cerrar todas mis sesiones" y, para un admin, "forzar el cierre de sesión de otro usuario" (útil ante una cuenta comprometida). Ninguno de los dos tiene botón todavía.
-3. **Sin UI de reseteo de contraseña** — un `super_admin` no tiene forma de fijarle una contraseña nueva a otro usuario desde `/usuarios`, aunque el backend ya lo soporta (`PATCH /auth/users/{id}` con `password`).
+1. ~~El logout del frontend no llama al backend~~ — **ya construido**: `api/auth/logout` revoca el refresh (y el access si hay cookie) antes de borrar cookies.
+2. ~~Sin UI para `logout-all` / `revoke-sessions`~~ — **ya construido**: botón en el menú de usuario y “Cerrar sesiones” en `/usuarios`.
+3. ~~Sin UI de reseteo de contraseña~~ — **ya construido**: modal “Resetear clave” para `super_admin` en `/usuarios`.
 
 **⏳ Pendiente — prioridad media:**
 
@@ -123,7 +124,7 @@ POST /auth/logout
 
 → 204
 ```
-Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). El proxy/`api/auth/logout` del frontend debería llamar a este endpoint con el `refresh_token` guardado **antes** de borrar las cookies locales, no solo borrar cookies como hace hoy.
+Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). Si además se manda `Authorization: Bearer <access>`, también invalida ese access de inmediato. El frontend ya llama a este endpoint desde `api/auth/logout` **antes** de borrar las cookies locales (18/09/2026).
 
 > ⚠️ **(nuevo, 14/09/2026) Ya no hace falta trabajar el trade-off de "el access_token sigue vivo tras el logout"**: si el request a `/auth/logout` incluye el header `Authorization: Bearer <access_token>` (el mismo que ya se manda en cualquier otro request autenticado), el backend además invalida ese access_token de inmediato — cualquier uso posterior responde `401`. Es **opcional**: si no se manda el header, el comportamiento es igual que antes (solo se revoca el refresh_token). Recomendación: que el logout del frontend mande el header, así el cierre de sesión es inmediato de verdad y no depende de esperar los ~15 minutos de vida del access_token.
 
@@ -275,7 +276,7 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
-- `POST /auth/logout` ya existe (revoca el refresh token y, si se manda el header `Authorization`, también el access token) — el frontend todavía no lo llama en absoluto, ver el punto 1 de "prioridad alta" al inicio de este documento.
+- `POST /auth/logout` revoca el refresh token y, si se manda el header `Authorization`, también el access token — el frontend ya lo llama desde `api/auth/logout` (18/09/2026).
 - Rate limiting: ya cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). **(actualizado 14/09/2026)** — antes solo cubría login/refresh/uploads.
 
 ## 6. Errores comunes a manejar en el frontend
