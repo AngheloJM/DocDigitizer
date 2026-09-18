@@ -123,3 +123,26 @@ async def test_find_stuck_document_ids_only_returns_old_processing_documents(db_
     for document in (stuck, recent, completed):
         await db_session.delete(document)
     await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_find_stuck_document_ids_ignores_soft_deleted_documents(db_session, test_user):
+    deleted_and_stuck = await create_document(
+        db_session, test_user.id, DocumentCreate(title="Borrado pero colgado")
+    )
+    await _set_status_and_age(
+        db_session, deleted_and_stuck.id, "processing", STUCK_PROCESSING_THRESHOLD_MINUTES + 5
+    )
+    await db_session.execute(
+        update(Document)
+        .where(Document.id == deleted_and_stuck.id)
+        .values(deleted_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+
+    stuck_ids = await _find_stuck_document_ids(STUCK_PROCESSING_THRESHOLD_MINUTES)
+
+    assert deleted_and_stuck.id not in stuck_ids
+
+    await db_session.delete(deleted_and_stuck)
+    await db_session.commit()
