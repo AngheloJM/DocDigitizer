@@ -19,11 +19,21 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 - **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas** y **cambiar de rol** (solo `super_admin` ve el botón de cambiar rol).
 - Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
 
+**⏳ Pendiente — prioridad alta (funcionalidad de seguridad del hardening del 14/09 sin usar todavía):**
+
+1. **El logout del frontend no llama al backend** — hoy `api/auth/logout/route.ts` y `logoutRequest()` solo borran las cookies locales, nunca pegan a `POST /auth/logout`. Esto es más que un detalle: el `refresh_token` real **nunca se revoca en el servidor**, sigue siendo válido 7 días aunque el usuario haya "cerrado sesión". Hay que llamar al endpoint con el `refresh_token` guardado **antes** de borrar las cookies, y de paso mandar el header `Authorization` para que además invalide el `access_token` de inmediato (ver sección 1).
+2. **Sin UI para `logout-all` / `revoke-sessions`** — el backend ya soporta "cerrar todas mis sesiones" y, para un admin, "forzar el cierre de sesión de otro usuario" (útil ante una cuenta comprometida). Ninguno de los dos tiene botón todavía.
+3. **Sin UI de reseteo de contraseña** — un `super_admin` no tiene forma de fijarle una contraseña nueva a otro usuario desde `/usuarios`, aunque el backend ya lo soporta (`PATCH /auth/users/{id}` con `password`).
+
 **⏳ Pendiente — prioridad media:**
 
-1. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
-2. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
-3. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug.
+4. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
+5. **Mostrar el motivo del fallo** (`error_message`, ver sección 3) cuando un documento queda en `"failed"` — hoy el backend lo expone pero no se muestra en ningún lado.
+6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
+7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
+8. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug. **En curso (17/09/2026):** ya hay ramas en progreso (`fix/filtro_meses`, `fix/modal_subirDoc`) que unifican `/carpetas` dentro de `/ubicacion` — coordinar con el equipo antes de mergear para no resolverlo dos veces.
+9. **Buscador de texto dentro de `/carpetas`** — un input simple que filtre la lista ya cargada por nombre, sin pegarle de nuevo al backend.
+10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
 
 Ninguno de estos bloquea el uso básico del sistema.
 
@@ -50,8 +60,7 @@ Un compañero de curso armó un mockup visual del mismo tipo de sistema (React +
 
 5. ~~Dashboard/inicio con resumen y "actividad reciente"~~ — **ya construido** como `/inicio` (13/09/2026): tarjetas de total, pendientes y completados, y los últimos documentos (`GET /documents` ordenado por `created_at desc`). El login redirige ahí.
 6. ~~Mapa visual de estantes~~ — **ya construido** como la pantalla `/ubicacion` (10/09/2026), navega estante → división → columna → tomo con `GET /documents/locations`.
-7. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
-8. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+7. Buscador de categorías/carpetas por texto, y vista tabla/grilla intercambiable — ver la lista de pendientes al inicio de este documento.
 
 ⚠️ **Ojo con esto:** en ese mockup, debajo del mapa y la grilla de carpetas hay una tercera sección ("Estructura documental / Taxonomía institucional") que repite la misma lista de carpetas con los mismos conteos, en formato de lista plana — es puramente redundante con la grilla de arriba, no aporta nada nuevo. **No la repliquen** si toman ideas de ese mockup.
 
@@ -266,7 +275,7 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
-- `POST /auth/logout` ya existe (revoca el refresh token) — falta que el frontend lo llame antes de borrar las cookies, y de paso mande el header `Authorization` para que también invalide el access_token (ver sección 1).
+- `POST /auth/logout` ya existe (revoca el refresh token y, si se manda el header `Authorization`, también el access token) — el frontend todavía no lo llama en absoluto, ver el punto 1 de "prioridad alta" al inicio de este documento.
 - Rate limiting: ya cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). **(actualizado 14/09/2026)** — antes solo cubría login/refresh/uploads.
 
 ## 6. Errores comunes a manejar en el frontend
