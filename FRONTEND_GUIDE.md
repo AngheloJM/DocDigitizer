@@ -206,14 +206,14 @@ multipart: file=<archivo>, title="...", doc_type? , folder_id?
 → 202 { document_id, task_id: null, status: "pending" }
 ```
 
-**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa) — **este es el flujo que falta construir en el frontend, ver "Pendiente — prioridad alta" arriba**:
+**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa) — **ya construido** en `/documentos` (botón "Subir escaneo" para documentos sin archivo):
 ```
 1) POST /documents          { title, description?, doc_type?, folder_id?, physical_shelf?, physical_division?, physical_column?, physical_volume?, archived_year?, archived_month_start?, archived_month_end? }   → 201, documento sin archivo
 2) POST /documents/{id}/upload   multipart: file=<archivo>                    → 202 { document_id, status }
 ```
 Intentar subir un segundo archivo al mismo documento responde `409` (un documento solo tiene un archivo original).
 
-Ahora mismo hay **289 documentos reales** ya en este estado (creados sin archivo, migrados desde el sistema anterior del archivo físico) — la UI necesita mostrar estos documentos `pending` y ofrecer el botón de "subir escaneo" (paso 2) para cada uno.
+Los **289 documentos reales** migrados desde el sistema anterior del archivo físico ya están en este estado (creados sin archivo) — el botón de "subir escaneo" del listado de `/documentos` ya cubre este caso.
 
 Los campos `physical_*` (`physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, todos `string`) son opcionales y catalogan dónde está guardado físicamente el documento (estante/división/columna/tomo).
 
@@ -236,6 +236,8 @@ POST   /documents/{id}/restore                                          → 200,
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
 
 > ⚙️ **(nuevo, 14/09/2026) Reintentos automáticos**: si el procesamiento falla por algo transitorio (ej. una caída momentánea de almacenamiento), el backend reintenta solo hasta 3 veces con backoff (30s/60s/120s) antes de marcar `failed`. Mientras tanto el documento se queda en `status: "processing"` — el polling que ya tenían sigue funcionando igual, solo puede tardar un poco más en algunos casos raros antes de llegar a `completed` o `failed`. No hace falta cambiar nada en el frontend por esto.
+>
+> ⏱️ **(nuevo, 16/09/2026) Procesamiento acotado en el tiempo**: antes, un archivo problemático podía dejar un documento colgado en `status: "processing"` indefinidamente (llegó a pasar por horas). Ahora el worker corta la tarea sola a los 10-11 minutos y, si por algún motivo queda "huérfana" igual, una revisión automática cada 5 minutos la vuelve a encolar. En la práctica, un documento nunca debería quedarse en `processing` por más de ~20-25 minutos — si el frontend quiere mostrar algún aviso tipo "esto está tardando más de lo normal", ese es el umbral de referencia.
 >
 > 📋 **(nuevo, 14/09/2026) Motivo del fallo visible**: `GET /documents/{id}/status` y el detalle del documento (`GET /documents/{id}`) ahora traen `error_message` (string o `null`). Antes, cuando un documento quedaba en `failed`, no había forma de saber por qué desde el frontend — ahora se puede mostrar el motivo (ej. "El documento no tiene un archivo original asociado") en vez de un genérico "algo salió mal".
 >
