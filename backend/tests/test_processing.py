@@ -1,11 +1,18 @@
 import cv2
 import numpy as np
+import pymupdf
 
 from app.processing.binarizer import binarize
 from app.processing.denoiser import denoise
 from app.processing.deskew import deskew
 from app.processing.perspective import correct_perspective
-from app.processing.pipeline import _looks_born_digital
+from app.processing.pipeline import (
+    MAX_DIMENSION_PX,
+    PDF_RENDER_DPI,
+    PDF_RENDER_DPI_FLOOR,
+    _dpi_for_pdf_page,
+    _looks_born_digital,
+)
 
 
 def test_denoise_reduces_noise_variance():
@@ -128,6 +135,55 @@ def test_looks_born_digital_true_for_colorful_screenshot_style_image():
     screenshot[100:, :] = (200, 20, 180)  # BGR: bloque rosado/violeta saturado
 
     assert _looks_born_digital(screenshot) is True
+
+
+def _make_pdf_page(width_pt: float, height_pt: float):
+    doc = pymupdf.open()
+    return doc, doc.new_page(width=width_pt, height=height_pt)
+
+
+def test_dpi_for_pdf_page_targets_max_dimension_for_letter_sized_page():
+    # carta (8.5x11in): a 300 DPI el lado largo (11in) da 3300px, ya por encima de
+    # MAX_DIMENSION_PX -- incluso el caso tipico se beneficia de apuntar directo al
+    # tamano final en vez de renderizar de mas y despues volver a achicar.
+    doc, page = _make_pdf_page(8.5 * 72, 11 * 72)
+    try:
+        dpi = _dpi_for_pdf_page(page)
+        assert PDF_RENDER_DPI_FLOOR <= dpi < PDF_RENDER_DPI
+        assert abs(dpi * 11 - MAX_DIMENSION_PX) < 11
+    finally:
+        doc.close()
+
+
+def test_dpi_for_pdf_page_uses_ceiling_for_small_page():
+    # una pagina chica (ej. una foto tipo carnet) no debe forzarse a mas de la DPI techo
+    doc, page = _make_pdf_page(2 * 72, 3 * 72)
+    try:
+        assert _dpi_for_pdf_page(page) == PDF_RENDER_DPI
+    finally:
+        doc.close()
+
+
+def test_dpi_for_pdf_page_scales_down_for_oversized_page():
+    # pagina "nacida digital": grande en pulgadas asumiendo baja resolucion (72 DPI),
+    # como un screenshot ancho exportado a PDF -- la DPI techo la agrandaria de mas
+    doc, page = _make_pdf_page(1345, 896)
+    try:
+        dpi = _dpi_for_pdf_page(page)
+        assert dpi < PDF_RENDER_DPI
+        assert dpi >= PDF_RENDER_DPI_FLOOR
+        longest_side_in = 1345 / 72
+        assert abs(dpi * longest_side_in - MAX_DIMENSION_PX) < longest_side_in
+    finally:
+        doc.close()
+
+
+def test_dpi_for_pdf_page_never_goes_below_floor():
+    doc, page = _make_pdf_page(200 * 72, 150 * 72)
+    try:
+        assert _dpi_for_pdf_page(page) == PDF_RENDER_DPI_FLOOR
+    finally:
+        doc.close()
 
 
 def test_correct_perspective_disabled_for_pdf_source():
