@@ -5,6 +5,7 @@ from app.processing.binarizer import binarize
 from app.processing.denoiser import denoise
 from app.processing.deskew import deskew
 from app.processing.perspective import correct_perspective
+from app.processing.pipeline import _looks_born_digital
 
 
 def test_denoise_reduces_noise_variance():
@@ -110,6 +111,23 @@ def test_correct_perspective_rejects_small_quadrilateral():
     assert metadata["perspective_corrected"] is False
     assert metadata["reason"] == "quadrilateral_too_small"
     assert result.shape == quad_img.shape
+
+
+def test_looks_born_digital_false_for_scanned_paper_style_image():
+    # papel real: fondo casi blanco, texto negro, sin color saturado
+    scanned = np.full((200, 200, 3), 245, dtype=np.uint8)
+    cv2.putText(scanned, "ACTA", (30, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (10, 10, 10), 2)
+
+    assert _looks_born_digital(scanned) is False
+
+
+def test_looks_born_digital_true_for_colorful_screenshot_style_image():
+    # screenshot/diseno: bloques grandes de color saturado
+    screenshot = np.zeros((200, 200, 3), dtype=np.uint8)
+    screenshot[:100, :] = (180, 60, 20)  # BGR: bloque naranja/azul saturado
+    screenshot[100:, :] = (200, 20, 180)  # BGR: bloque rosado/violeta saturado
+
+    assert _looks_born_digital(screenshot) is True
 
 
 def test_correct_perspective_disabled_for_pdf_source():
