@@ -44,6 +44,22 @@ Si sos usuario del sistema y tenés dudas sobre cuándo vas a poder usarlo de fo
 - El worker corre con `--concurrency=1 --pool=prefork -B` (ver `Dockerfile` y `worker_web_wrapper.py`) — un único proceso hijo (necesario para poder aplicarle límites de tiempo y reciclarlo) más Celery Beat embebido en el mismo proceso, sin agregar un servicio nuevo en Render. El free tier da solo 512MB de RAM, así que el pipeline de OCR (Tesseract/OpenCV) puede agotar memoria en archivos grandes; para que eso no cuelgue el worker para siempre (pasó, ~16/09/2026), ahora hay límite de tiempo por tarea (10-11 min), reciclado del proceso cada 20 tareas, y una revisión automática cada 5 min que reencola cualquier documento que quede "huérfano" en `processing`.
 - `CORS_ALLOWED_ORIGINS` está temporalmente en `["*"]` en producción — pendiente de restringir a la URL real del frontend una vez que el equipo de frontend confirme que quedó estable.
 
+### Alternativa: despliegue on-premise (dentro de la universidad)
+
+Si UTEPSA decide no depender de servicios externos, los mismos 5 componentes lógicos pueden correr **self-hosted** en un servidor propio, sin contratar nada:
+
+| Componente | Hoy (nube) | On-premise |
+|---|---|---|
+| API (FastAPI) | Render | Contenedor Docker en un servidor de la universidad |
+| Worker OCR/PDF (Celery) | Render + wrapper | Contenedor Docker (sin el wrapper — ese existe solo para esquivar la limitación de "Background Worker" del free tier de Render) |
+| Base de datos | Neon | PostgreSQL propio (contenedor) |
+| Cola/broker | Upstash | Redis propio (contenedor) |
+| Almacenamiento | Cloudflare R2 | MinIO propio (contenedor) |
+
+El `docker-compose.yml` de este repo ya define los 5 componentes como contenedores (es literalmente lo que se usa en desarrollo local) — pasar a producción on-premise es, en esencia, tomar ese mismo compose con ajustes de producción (contraseñas reales en vez de `changeme`, volúmenes con backup, no exponer los puertos internos a internet) y correrlo en un servidor real en vez de una laptop de desarrollo. Ventaja: los problemas de esta semana (worker que se queda sin memoria, que se duerme, que tarda 30-50s en despertar) son consecuencia directa de las limitaciones del free tier de Render — un servidor con recursos dedicados los elimina de raíz. Falta definir el tamaño de servidor necesario (RAM/CPU/disco) según el volumen real de documentos.
+
+⚠️ **Cuidado con las herramientas de "limpieza" al operar Docker on-premise**: los volúmenes (`postgres_data`, `minio_data`) son volúmenes *nombrados* de Docker — en Windows con Docker Desktop viven dentro del disco virtual de la distro WSL2, no en una carpeta temporal de Windows, así que un limpiador de archivos temporales normal no debería tocarlos. Lo que sí los borra: `docker compose down -v` (el `-v` elimina los volúmenes), `docker system prune --volumes`, o la opción "Clean / Purge data" de Docker Desktop — algunas suites de "optimización de sistema" incluyen un módulo que ejecuta justamente esto. En producción, nunca corran esos comandos sin un backup reciente de los volúmenes.
+
 ## Backend — guía rápida para el equipo de frontend
 
 El backend expone documentación interactiva automática (Swagger) para probar los endpoints sin necesidad de escribir código.
