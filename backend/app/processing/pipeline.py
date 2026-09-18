@@ -20,6 +20,19 @@ logger = logging.getLogger(__name__)
 MAX_DIMENSION_PX = 3000
 PDF_RENDER_DPI = 300
 
+# Saturacion HSV promedio (0-255) por encima de la cual asumimos que la imagen es
+# una captura digital nitida (screenshot, diseno, export) y no una foto de un papel
+# real. Un documento fisico escaneado es mayormente blanco/negro con acentos de
+# color puntuales (un sello, una firma), lo que da un promedio bajo; una imagen con
+# bloques grandes de color solido (como este ejemplo) da un promedio mucho mas alto.
+BORN_DIGITAL_SATURATION_THRESHOLD = 30
+
+
+def _looks_born_digital(image: np.ndarray) -> bool:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mean_saturation = float(hsv[:, :, 1].mean())
+    return mean_saturation > BORN_DIGITAL_SATURATION_THRESHOLD
+
 
 def _resize_if_needed(pil_image: Image.Image) -> Image.Image:
     largest_side = max(pil_image.width, pil_image.height)
@@ -101,20 +114,24 @@ def _process_page(
 
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     pages_in_source = _count_pages(file_bytes, file_format)
-    # los PDFs son renders digitales limpios, nunca fotografiados en angulo
-    # ni con ruido de sensor de camara -- estos pasos solo aplican a fotos reales
-    photo_only_config = {"enabled": file_format != "pdf"}
 
     page_results = []
     for index, page_image in enumerate(_iter_pages(file_bytes, file_format)):
+        # los PDFs son renders digitales limpios, nunca fotografiados en angulo ni
+        # con ruido de sensor de camara -- estos pasos solo aplican a fotos reales.
+        # Para el resto de formatos, una imagen puede igual ser "nacida digital"
+        # (un screenshot, un export) en vez de una foto de papel real -- aplicarle
+        # binarizacion/perspectiva a algo asi lo arruina en vez de mejorarlo.
+        is_photo = file_format != "pdf" and not _looks_born_digital(page_image)
+        page_config = {"enabled": is_photo}
         page_results.append(
             _process_page(
                 page_image,
                 index + 1,
-                photo_only_config,
-                photo_only_config,
-                photo_only_config,
-                photo_only_config,
+                page_config,
+                page_config,
+                page_config,
+                page_config,
             )
         )
         del page_image
