@@ -48,6 +48,7 @@ function UbicacionContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showingDocs, setShowingDocs] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const crumbs = useMemo(() => {
     const items: { label: string; href: string }[] = [{ label: "Archivo físico", href: "/ubicacion" }];
@@ -153,6 +154,10 @@ function UbicacionContent() {
   const meta = LEVEL_META[currentLevel];
   const parentHref = crumbs.length > 1 ? crumbs[crumbs.length - 2].href : null;
 
+  const filteredNodes = nodes.filter((node) =>
+  node.value.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
   return (
     <>
       <div className="mb-8">
@@ -244,8 +249,23 @@ function UbicacionContent() {
             <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
             <h3 className="text-sm font-semibold text-on-surface">{meta.plural}</h3>
           </div>
+
+<div className="relative mb-4">
+  <Icon
+    name="search"
+    className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+  />
+  <input
+    type="text"
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    placeholder={`Buscar ${meta.plural.toLowerCase()}...`}
+    className="w-full bg-white border border-outline-variant rounded-xl py-2.5 pl-10 pr-4 text-sm text-on-surface outline-none focus:border-primary"
+  />
+</div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {nodes.map((node) => (
+            {filteredNodes.map((node) => (
               <button
                 key={node.value}
                 type="button"
