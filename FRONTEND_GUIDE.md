@@ -4,7 +4,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 > 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
-## Estado actual (2026-09-17)
+## Estado actual (2026-09-20)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
@@ -32,8 +32,8 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 5. **Mostrar el motivo del fallo** (`error_message`, ver sección 3) cuando un documento queda en `"failed"` — hoy el backend lo expone pero no se muestra en ningún lado.
 6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
 7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
-8. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug. **En curso (17/09/2026):** ya hay ramas en progreso (`fix/filtro_meses`, `fix/modal_subirDoc`) que unifican `/carpetas` dentro de `/ubicacion` — coordinar con el equipo antes de mergear para no resolverlo dos veces.
-9. **Buscador de texto dentro de `/carpetas`** — un input simple que filtre la lista ya cargada por nombre, sin pegarle de nuevo al backend.
+8. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug. **⚠️ En curso, sin coordinar (20/09/2026):** hay 4 ramas distintas resolviendo esto por separado — `fix/filtro_meses`, `fix/modal_subirDoc` (Alex), `frontend/unificar-archivo`, y el PR #72 "buscador de ubicaciones" (Daniel, incluye además el punto 9 de abajo). Ninguna coordinada con las otras. **No mergear ninguna** hasta que el equipo decida cuál se queda como la oficial.
+9. **Buscador de texto dentro de `/carpetas`** — un input simple que filtre la lista ya cargada por nombre, sin pegarle de nuevo al backend. Ya resuelto (para `/ubicacion`) en el PR #72 mencionado arriba, pendiente de coordinar junto con el punto 8.
 10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
 
 Ninguno de estos bloquea el uso básico del sistema.
