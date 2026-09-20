@@ -11,6 +11,7 @@ type AuthContextValue = {
   loading: boolean;
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
+  logoutAll: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -34,14 +35,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, [router]);
 
-  async function logout() {
-    await logoutRequest();
+  async function finishLogout() {
+    setUser(null);
     router.replace("/login");
     router.refresh();
   }
 
+  async function logout() {
+    await logoutRequest().catch(() => undefined);
+    await finishLogout();
+  }
+
+  async function logoutAll() {
+    try {
+      await backend.auth.logoutAll();
+    } catch {
+      /* seguimos limpiando cookies locales */
+    }
+    await logoutRequest().catch(() => undefined);
+    await finishLogout();
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, refreshUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, refreshUser, logout, logoutAll }}>
       {loading ? (
         <div className="min-h-screen flex items-center justify-center bg-surface-container">
           <div className="flex flex-col items-center gap-3">

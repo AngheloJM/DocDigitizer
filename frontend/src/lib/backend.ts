@@ -61,6 +61,16 @@ export const backend = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+
+    logoutAll: () =>
+      api<void>("/auth/logout-all", {
+        method: "POST",
+      }),
+
+    revokeSessions: (id: string) =>
+      api<void>(`/auth/users/${id}/revoke-sessions`, {
+        method: "POST",
+      }),
   },
 
   folders: {
