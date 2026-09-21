@@ -10,8 +10,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
 - **Inicio** (`/inicio`, nuevo 13/09/2026): resumen con total, pendientes y completados, y los últimos documentos registrados. El login ya no redirige a `/carpetas`.
-- **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
-- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
+- **Archivo** (`/ubicacion`, unificado en `frontend/unificar-archivo`): una sola pestaña en el menú. Navega el archivo real (estante → división → columna → tomo) con `GET /documents/locations`, con buscador de texto sobre el nivel actual. `/carpetas` redirige aquí. El árbol manual de carpetas ya no está en el menú; asignar una carpeta sigue existiendo al editar un documento.
 - **Documentos** (`/documentos`): listar con filtros (año archivado, rango de mes archivado, estante, estado, asignación — nuevo 17/09/2026), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
@@ -32,8 +31,8 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 5. **Mostrar el motivo del fallo** (`error_message`, ver sección 3) cuando un documento queda en `"failed"` — hoy el backend lo expone pero no se muestra en ningún lado.
 6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
 7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
-8. **Decidir el destino de `/carpetas`** ahora que existe `/ubicacion` (la navegación real por estante/división/columna/tomo) — ¿conviven las dos pantallas, o se retira el árbol manual de carpetas? Es una decisión de producto, no un bug. **⚠️ En curso, sin coordinar (20/09/2026):** hay 4 ramas distintas resolviendo esto por separado — `fix/filtro_meses`, `fix/modal_subirDoc` (Alex), `frontend/unificar-archivo`, y el PR #72 "buscador de ubicaciones" (Daniel, incluye además el punto 9 de abajo). Ninguna coordinada con las otras. **No mergear ninguna** hasta que el equipo decida cuál se queda como la oficial.
-9. **Buscador de texto dentro de `/carpetas`** — un input simple que filtre la lista ya cargada por nombre, sin pegarle de nuevo al backend. Ya resuelto (para `/ubicacion`) en el PR #72 mencionado arriba, pendiente de coordinar junto con el punto 8.
+8. ~~Decidir el destino de `/carpetas`~~ — **decidido**: se queda una sola pestaña **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. Implementación oficial: rama `frontend/unificar-archivo` (incluye también el buscador del punto 9). Las otras ramas que tocaban lo mismo (`fix/filtro_meses`, `fix/modal_subirDoc`, PR #72) no deben rehacer esta unificación; si traen otras features, que salgan en PRs aparte.
+9. ~~Buscador de texto dentro de `/carpetas`~~ — **ya construido** en `/ubicacion` (filtra estantes/divisiones/columnas/tomos ya cargados, sin nueva petición al backend).
 10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
 
 Ninguno de estos bloquea el uso básico del sistema.
@@ -51,7 +50,7 @@ Muestra:
 
 Archivos: `frontend/src/app/(dashboard)/inicio/page.tsx`, link en `Sidebar.tsx`, redirección en `login/page.tsx` y `middleware.ts`.
 
-Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`. Esto no unifica Carpetas y Ubicación; esa decisión sigue pendiente.
+Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`.
 
 > ⚠️ Nota para quien construyó `DocumentEditModal`: detectamos y corregimos (07/09/2026) un bug del backend que afectaba directamente a este modal — `PATCH /documents/{id}` ignoraba en silencio cualquier campo enviado explícitamente como `null` (por ejemplo, para quitarle la carpeta a un documento, o borrar el mes final del período). Ya está corregido en `main`; si probaste "borrar carpeta" o "borrar período" antes del 07/09 y no funcionó, ya debería andar bien ahora.
 
@@ -181,11 +180,9 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
-### Propuesta de rediseño (nuevo, 07/09/2026): "carpetas" basadas en ubicación física
+### Decisión: una sola pestaña Archivo (`/ubicacion`)
 
-Las carpetas de arriba son un árbol **manual** (lo arma el usuario a mano) y hoy en producción **nadie las usa de verdad** — no reflejan la ubicación física real del archivo (estante/división/columna/tomo), que ya tiene cada documento. Discutimos con el equipo la idea de que la navegación de "carpetas" en realidad sea el **gabinete físico real** (estante → división → columna → tomo), en vez de un árbol arbitrario.
-
-Se agregó un endpoint nuevo para esto, **sin tocar ni reemplazar** el módulo de `folders` de arriba (para no romper lo que ya está construido) — la decisión de si `/carpetas` en la UI pasa a usar esto en vez de (o adicionalmente a) las carpetas manuales queda del lado del frontend:
+Las carpetas de arriba son un árbol **manual** y no reflejan dónde está guardado el documento. El archivo real ya está en estante/división/columna/tomo. Por eso el menú quedó con **Archivo** (`/ubicacion`) y `/carpetas` redirige ahí. El módulo `folders` del backend no se borró; al editar un documento todavía se puede asignar una carpeta. Implementación oficial: rama `frontend/unificar-archivo` (también incluye buscador de texto sobre el nivel actual).
 
 ```
 GET /documents/locations?physical_shelf=&physical_division=&physical_column=
