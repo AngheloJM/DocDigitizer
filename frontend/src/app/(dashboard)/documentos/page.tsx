@@ -33,6 +33,7 @@ function DocumentosContent() {
 
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [view, setView] = useState<"table" | "grid">("table");
+  const [showTrash, setShowTrash] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -95,10 +96,15 @@ function DocumentosContent() {
         physicalShelf: shelfFilter.trim() || null,
         statusFilter: statusFilter || null,
         assignedToId: assignmentFilter === "mine" ? user.id : null,
+        includeDeleted: showTrash,
       });
 
       if (requestId !== listRequestRef.current) return;
-      setItems(data.items);
+      setItems(
+      showTrash
+     ? data.items.filter((doc) => doc.deleted_at !== null)
+      : data.items.filter((doc) => doc.deleted_at === null)
+    );
       setTotal(data.total);
       setTotalPaginas(data.pages);
     } catch (err) {
@@ -107,7 +113,7 @@ function DocumentosContent() {
     } finally {
       if (requestId === listRequestRef.current) setLoading(false);
     }
-  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter]);
+  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter, showTrash]);
 
   useEffect(() => {
     void loadUsers();
@@ -119,6 +125,7 @@ function DocumentosContent() {
   }, [load]);
 
   useEffect(() => {
+    if (showTrash) return;
     const pending = items.filter((item) =>
       ["pending", "processing", "reprocessing"].includes(item.status),
     );
@@ -148,7 +155,7 @@ function DocumentosContent() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [items]);
+  }, [items, showTrash]);
 
 
   function openScanPicker(docId: string) {
@@ -225,29 +232,60 @@ function DocumentosContent() {
       setAssigningId(null);
     }
   }
-  async function onReprocess(docId: string) {
-    if (reprocessingRef.current.has(docId)) return;
-    reprocessingRef.current.add(docId);
-    setReprocessingIds(new Set(reprocessingRef.current));
-    setError(null);
-    try {
-      const result = await backend.documents.reprocess(docId);
-      setItems((current) => current.map((doc) => doc.id === docId
-        ? { ...doc, status: result.status, error_message: null, processed_at: null }
-        : doc));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo reprocesar el documento");
-    } finally {
-      reprocessingRef.current.delete(docId);
-      setReprocessingIds(new Set(reprocessingRef.current));
-    }
-  }
+ async function onReprocess(docId: string) {
+  if (reprocessingRef.current.has(docId)) return;
 
-  function assigneeLabel(doc: DocumentItem) {
-    if (!doc.assigned_to_id) return "Sin asignar";
-    if (user && doc.assigned_to_id === user.id) return "Asignado a mí";
-    return usersById.get(doc.assigned_to_id)?.full_name ?? "Usuario asignado";
+  reprocessingRef.current.add(docId);
+  setReprocessingIds(new Set(reprocessingRef.current));
+  setError(null);
+
+  try {
+    const result = await backend.documents.reprocess(docId);
+
+    setItems((current) =>
+      current.map((doc) =>
+        doc.id === docId
+          ? {
+              ...doc,
+              status: result.status,
+              error_message: null,
+              processed_at: null,
+            }
+          : doc
+      )
+    );
+  } catch (err) {
+    setError(
+      err instanceof ApiError
+        ? err.message
+        : "No se pudo reprocesar el documento"
+    );
+  } finally {
+    reprocessingRef.current.delete(docId);
+    setReprocessingIds(new Set(reprocessingRef.current));
   }
+}
+
+async function onRestore(docId: string) {
+  setError(null);
+
+  try {
+    await backend.documents.restore(docId);
+    await load();
+  } catch (err) {
+    setError(
+      err instanceof ApiError
+        ? err.message
+        : "No se pudo restaurar el documento"
+    );
+  }
+}
+
+function assigneeLabel(doc: DocumentItem) {
+  if (!doc.assigned_to_id) return "Sin asignar";
+  if (user && doc.assigned_to_id === user.id) return "Asignado a mí";
+  return usersById.get(doc.assigned_to_id)?.full_name ?? "Usuario asignado";
+}
 
   function renderDocumentTitle(doc: DocumentItem) {
     const assignedToMe = Boolean(user && doc.assigned_to_id === user.id);
@@ -275,6 +313,13 @@ function DocumentosContent() {
   }
 
   function renderAssignment(doc: DocumentItem) {
+     if (showTrash) {
+    return (
+      <span className="text-xs text-on-surface-variant">
+        {assigneeLabel(doc)}
+      </span>
+    );
+  }
     return (
       <div className="min-w-0 [overflow-wrap:anywhere]">
         {staff ? (
@@ -309,44 +354,65 @@ function DocumentosContent() {
   }
 
   function renderActions(doc: DocumentItem) {
+  if (showTrash) {
     return (
-      <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
-        {canEditDocument(doc) && (
-          <button
-            type="button"
-            onClick={() => {
-              setUploading(false);
-              setEditingDocument(doc);
-            }}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            title="Editar documento"
-            aria-label={`Editar ${doc.title}`}
-          >
-            <Icon name="edit" className="text-lg" />
-          </button>
-        )}
-        {canEditDocument(doc) && (
-          <DocumentRecoveryActions
-            document={doc}
-            busy={reprocessingIds.has(doc.id) || (scanBusy && scanDocId === doc.id)}
-            uploadBusy={scanBusy}
-            onUpload={() => openScanPicker(doc.id)}
-            onReprocess={() => void onReprocess(doc.id)}
-          />
-        )}
-
-        {doc.status === "completed" ? (
-          <a
-            href={backend.documents.downloadUrl(doc.id)}
-            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
-            title="Descargar"
-          >
-            <Icon name="download" className="text-lg" />
-          </a>
-        ) : null}
+      <div className="inline-flex flex-wrap items-center gap-1 justify-end">
+        <button
+          type="button"
+          onClick={() => void onRestore(doc.id)}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+          title="Restaurar documento"
+          aria-label={`Restaurar ${doc.title}`}
+        >
+          <Icon name="restore" className="text-lg" />
+          Restaurar
+        </button>
       </div>
     );
   }
+
+  return (
+    <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
+      {canEditDocument(doc) && (
+        <button
+          type="button"
+          onClick={() => {
+            setUploading(false);
+            setEditingDocument(doc);
+          }}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          title="Editar documento"
+          aria-label={`Editar ${doc.title}`}
+        >
+          <Icon name="edit" className="text-lg" />
+        </button>
+      )}
+
+      {canEditDocument(doc) && (
+        <DocumentRecoveryActions
+          document={doc}
+          busy={
+            reprocessingIds.has(doc.id) ||
+            (scanBusy && scanDocId === doc.id)
+          }
+          uploadBusy={scanBusy}
+          onUpload={() => openScanPicker(doc.id)}
+          onReprocess={() => void onReprocess(doc.id)}
+        />
+      )}
+
+      {doc.status === "completed" ? (
+        <a
+          href={backend.documents.downloadUrl(doc.id)}
+          className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
+          title="Descargar"
+        >
+          <Icon name="download" className="text-lg" />
+        </a>
+      ) : null}
+    </div>
+  );
+}
 
   return (
     <>
@@ -357,29 +423,48 @@ function DocumentosContent() {
         className="hidden"
         onChange={(event) => void onScanSelected(event)}
       />
+<div className="flex flex-col xl:flex-row gap-4 items-start justify-between mb-8">
+  <div className="min-w-0">
+    <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
+      {showTrash ? "Papelera" : "Documentos"}
+    </h2>
+    <p className="text-sm text-on-surface-variant max-w-2xl">
+      {showTrash
+        ? "Documentos eliminados que pueden ser restaurados."
+        : "Listado del archivo con ubicación, período y asignación. Los pendientes pueden recibir el escaneo después."}
+    </p>
+  </div>
 
-      <div className="flex flex-col xl:flex-row gap-4 items-start justify-between mb-8">
-        <div className="min-w-0">
-          <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
-            Documentos
-          </h2>
-          <p className="text-sm text-on-surface-variant max-w-2xl">
-            Listado del archivo con ubicación, período y asignación. Los pendientes pueden recibir el
-            escaneo después.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingDocument(null);
-            setUploading(true);
-          }}
-          className="w-full sm:w-auto shrink-0 min-h-11 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
-        >
-          <Icon name="upload" className="text-lg" /> Subir documento
-        </button>
-      </div>
+  <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+    {staff && (
+      <button
+        type="button"
+        onClick={() => {
+          setShowTrash((current) => !current);
+          setPagina(1);
+          setError(null);
+        }}
+        className="w-full sm:w-auto shrink-0 min-h-11 border border-outline-variant text-on-surface text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-surface-container transition-colors whitespace-nowrap"
+      >
+        <Icon name={showTrash ? "arrow_back" : "delete"} className="text-lg" />
+        {showTrash ? "Volver a documentos" : "Papelera"}
+      </button>
+    )}
 
+    {!showTrash && (
+      <button
+        type="button"
+        onClick={() => {
+          setEditingDocument(null);
+          setUploading(true);
+        }}
+        className="w-full sm:w-auto shrink-0 min-h-11 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+      >
+        <Icon name="upload" className="text-lg" /> Subir documento
+      </button>
+    )}
+  </div>
+</div>
       <div className="min-w-0 bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         <div className="min-w-0">
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
@@ -513,7 +598,9 @@ function DocumentosContent() {
           <div className="py-8 text-center text-on-surface-variant text-sm">Cargando documentos...</div>
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-on-surface-variant text-sm">
-            No hay documentos con estos filtros.
+            {showTrash
+            ? "La papelera está vacía."
+            : "No hay documentos con estos filtros."} 
           </div>
         ) : view === "grid" ? (
           <ul aria-label="Documentos en tarjetas" className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">

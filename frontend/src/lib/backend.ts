@@ -25,6 +25,7 @@ export type DocumentListFilters = {
   archivedMonthFrom?: number | null;
   archivedMonthTo?: number | null;
   assignedToId?: string | null;
+  includeDeleted?: boolean;
 };
 
 
@@ -106,46 +107,50 @@ export const backend = {
     detail: (id: string) => api<DocumentDetail>(`/documents/${id}`),
 
     list: (filters: DocumentListFilters = {}) => {
-      const params = new URLSearchParams({
-        page: String(filters.page ?? 1),
-        per_page: String(filters.perPage ?? 50),
-      });
+  const params = new URLSearchParams({
+    page: String(filters.page ?? 1),
+    per_page: String(filters.perPage ?? 50),
+  });
 
-      if (filters.folderId) params.set("folder_id", filters.folderId);
+  if (filters.folderId)
+    params.set("folder_id", filters.folderId);
 
-      if (filters.statusFilter)
-        params.set("status_filter", filters.statusFilter);
+  if (filters.statusFilter)
+    params.set("status_filter", filters.statusFilter);
 
-      if (filters.physicalShelf)
-        params.set("physical_shelf", filters.physicalShelf);
+  if (filters.physicalShelf)
+    params.set("physical_shelf", filters.physicalShelf);
 
-      if (filters.physicalDivision)
-        params.set("physical_division", filters.physicalDivision);
+  if (filters.physicalDivision)
+    params.set("physical_division", filters.physicalDivision);
 
-      if (filters.physicalColumn)
-        params.set("physical_column", filters.physicalColumn);
+  if (filters.physicalColumn)
+    params.set("physical_column", filters.physicalColumn);
 
-      if (filters.physicalVolume)
-        params.set("physical_volume", filters.physicalVolume);
+  if (filters.physicalVolume)
+    params.set("physical_volume", filters.physicalVolume);
 
-      if (filters.archivedYear != null)
-        params.set("archived_year", String(filters.archivedYear));
+  if (filters.archivedYear != null)
+    params.set("archived_year", String(filters.archivedYear));
 
-      if (filters.archivedMonthFrom != null) {
-        params.set("archived_month_from", String(filters.archivedMonthFrom));
-      }
+  if (filters.archivedMonthFrom != null) {
+    params.set("archived_month_from", String(filters.archivedMonthFrom));
+  }
 
-      if (filters.archivedMonthTo != null) {
-        params.set("archived_month_to", String(filters.archivedMonthTo));
-      }
+  if (filters.archivedMonthTo != null) {
+    params.set("archived_month_to", String(filters.archivedMonthTo));
+  }
 
-      if (filters.assignedToId)
-        params.set("assigned_to_id", filters.assignedToId);
+  if (filters.assignedToId)
+    params.set("assigned_to_id", filters.assignedToId);
 
-      return api<Paginated<DocumentItem>>(
-        `/documents?${params.toString()}`
-      );
-    },
+  if (filters.includeDeleted)
+    params.set("include_deleted", "true");
+
+  return api<Paginated<DocumentItem>>(
+    `/documents?${params.toString()}`
+  );
+},
 
     locations: (filters: LocationFilters = {}) => {
       const params = new URLSearchParams();
@@ -207,6 +212,10 @@ export const backend = {
         task_id: string | null;
         status: string;
       }>(`/documents/${id}/reprocess`, {
+        method: "POST",
+      }),
+         restore: (id: string) =>
+      api<DocumentItem>(`/documents/${id}/restore`, {
         method: "POST",
       }),
 

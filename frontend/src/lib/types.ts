@@ -59,6 +59,7 @@ export type DocumentItem = {
   created_at: string;
   processed_at: string | null;
   error_message: string | null;
+  deleted_at: string | null;
 };
 
 export type DocumentDetail = DocumentItem & {
