@@ -158,8 +158,8 @@ export function formatArchivedPeriod(doc: {
   return String(doc.archived_year);
 }
 
-export function needsScanUpload(status: string) {
-  return status === "pending" || status === "failed";
+export function needsScanUpload(status: string, hasOriginal: boolean) {
+  return (status === "pending" || status === "failed") && !hasOriginal;
 }
 
 

@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { DocumentRecoveryActions } from "@/components/documents/DocumentRecoveryActions";
 import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { FailureReason } from "@/components/ui/FailureReason";
@@ -16,7 +17,6 @@ import {
   formatArchivedPeriod,
   formatPhysicalLocation,
   isStaff,
-  needsScanUpload,
   type DocumentItem,
   type User,
 } from "@/lib/types";
@@ -49,6 +49,9 @@ function DocumentosContent() {
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
+  const scanBusyRef = useRef(false);
+  const reprocessingRef = useRef(new Set<string>());
+  const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const scanInputRef = useRef<HTMLInputElement>(null);
@@ -120,9 +123,11 @@ function DocumentosContent() {
       ["pending", "processing", "reprocessing"].includes(item.status),
     );
     if (pending.length === 0) return;
+    let cancelled = false;
     const timer = window.setInterval(async () => {
       try {
         const updates = await Promise.all(pending.map((item) => backend.documents.status(item.id)));
+        if (cancelled) return;
         setItems((current) =>
           current.map((item) => {
             const index = pending.findIndex((row) => row.id === item.id);
@@ -139,7 +144,10 @@ function DocumentosContent() {
         /* ignore polling errors */
       }
     }, 2000);
-    return () => window.clearInterval(timer);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [items]);
 
 
@@ -152,13 +160,15 @@ function DocumentosContent() {
   async function onScanSelected(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
     event.target.value = "";
-    if (!selected || !scanDocId) return;
+    if (!selected || !scanDocId || scanBusyRef.current) return;
+    scanBusyRef.current = true;
     setScanBusy(true);
     setError(null);
     const form = new FormData();
     form.append("file", selected);
     try {
       await backend.documents.uploadToExisting(scanDocId, form);
+
       await load();
     } catch (err) {
       setError(
@@ -169,6 +179,7 @@ function DocumentosContent() {
           : "No se pudo subir el escaneo",
       );
     } finally {
+      scanBusyRef.current = false;
       setScanBusy(false);
       setScanDocId(null);
     }
@@ -215,26 +226,22 @@ function DocumentosContent() {
     }
   }
   async function onReprocess(docId: string) {
-  setError(null);
-
-  try {
-    const result = await backend.documents.reprocess(docId);
-
-    setItems((current) =>
-      current.map((doc) =>
-        doc.id === docId
-          ? { ...doc, status: result.status }
-          : doc
-      )
-    );
-  } catch (err) {
-    setError(
-      err instanceof ApiError
-        ? err.message
-        : "No se pudo reprocesar el documento"
-    );
+    if (reprocessingRef.current.has(docId)) return;
+    reprocessingRef.current.add(docId);
+    setReprocessingIds(new Set(reprocessingRef.current));
+    setError(null);
+    try {
+      const result = await backend.documents.reprocess(docId);
+      setItems((current) => current.map((doc) => doc.id === docId
+        ? { ...doc, status: result.status, error_message: null, processed_at: null }
+        : doc));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo reprocesar el documento");
+    } finally {
+      reprocessingRef.current.delete(docId);
+      setReprocessingIds(new Set(reprocessingRef.current));
+    }
   }
-}
 
   function assigneeLabel(doc: DocumentItem) {
     if (!doc.assigned_to_id) return "Sin asignar";
@@ -247,10 +254,10 @@ function DocumentosContent() {
     const isOwn = Boolean(user && doc.user_id === user.id);
     return (
       <div className="min-w-0 [overflow-wrap:anywhere]">
-        <p className="max-w-xs wrap-break-words font-medium text-on-surface">{doc.title}</p>
+        <p className="max-w-xs break-words font-medium text-on-surface">{doc.title}</p>
         <div className="mt-1 flex flex-wrap gap-1.5">
           {doc.doc_type && (
-            <span className="max-w-xs wrap-break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
+            <span className="max-w-xs break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
           )}
           {assignedToMe && (
             <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
@@ -318,28 +325,14 @@ function DocumentosContent() {
             <Icon name="edit" className="text-lg" />
           </button>
         )}
-        {needsScanUpload(doc.status) && (
-          <button
-            type="button"
-            onClick={() => openScanPicker(doc.id)}
-            disabled={scanBusy}
-            className="text-primary hover:bg-primary/5 p-1.5 rounded-2xl inline-flex"
-            title="Subir escaneo"
-          >
-            <Icon name="upload_file" className="text-lg" />
-          </button>
-        )}
-
-        {doc.status === "completed" && canEditDocument(doc) && (
-          <button
-            type="button"
-            onClick={() => void onReprocess(doc.id)}
-            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
-            title="Reprocesar documento"
-            aria-label={`Reprocesar ${doc.title}`}
-          >
-            <Icon name="refresh" className="text-lg" />
-          </button>
+        {canEditDocument(doc) && (
+          <DocumentRecoveryActions
+            document={doc}
+            busy={reprocessingIds.has(doc.id) || (scanBusy && scanDocId === doc.id)}
+            uploadBusy={scanBusy}
+            onUpload={() => openScanPicker(doc.id)}
+            onReprocess={() => void onReprocess(doc.id)}
+          />
         )}
 
         {doc.status === "completed" ? (
@@ -588,7 +581,7 @@ function DocumentosContent() {
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
                       </td>
-                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] wrap-break-words">
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] break-words">
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">

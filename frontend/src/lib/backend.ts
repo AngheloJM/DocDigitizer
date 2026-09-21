@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import type {
   DocumentItem,
+  DocumentDetail,
   DocumentUpdateInput,
   Folder,
   LocationNode,
@@ -102,6 +103,8 @@ export const backend = {
   },
 
   documents: {
+    detail: (id: string) => api<DocumentDetail>(`/documents/${id}`),
+
     list: (filters: DocumentListFilters = {}) => {
       const params = new URLSearchParams({
         page: String(filters.page ?? 1),
