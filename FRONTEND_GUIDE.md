@@ -53,8 +53,6 @@ Archivos: `frontend/src/app/(dashboard)/inicio/page.tsx`, link en `Sidebar.tsx`,
 
 Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`.
 
-> ⚠️ Nota para quien construyó `DocumentEditModal`: detectamos y corregimos (07/09/2026) un bug del backend que afectaba directamente a este modal — `PATCH /documents/{id}` ignoraba en silencio cualquier campo enviado explícitamente como `null` (por ejemplo, para quitarle la carpeta a un documento, o borrar el mes final del período). Ya está corregido en `main`; si probaste "borrar carpeta" o "borrar período" antes del 07/09 y no funcionó, ya debería andar bien ahora.
-
 ## Ideas de diseño de referencia (31/08/2026)
 
 Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
@@ -72,6 +70,7 @@ Levanta el backend localmente siguiendo la sección "Backend — guía rápida p
 - Base URL local: `http://127.0.0.1:8001/api/v1`
 - Swagger interactivo local: `http://127.0.0.1:8001/docs`
 - CORS local ya está habilitado para `http://localhost:3000` (el puerto por defecto de Next.js). Si usas otro puerto, avisa para agregarlo.
+- Además de `docker compose up -d`, hay que levantar también `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 **Producción (ya desplegado):**
 - Base URL: `https://docdigitizer.onrender.com/api/v1`
@@ -200,8 +199,6 @@ Formatos aceptados: `png, jpg, jpeg, tiff, bmp, pdf`. Tamaño máximo: 20 MB. L�
 
 ✅ Si el archivo es un PDF de varias páginas, se procesan **todas** — el PDF/A generado y el texto extraído cubren el documento completo, no solo la primera página.
 
-> ⚠️ Para el equipo de frontend: `documentos/page.tsx:213` todavía dice "Si el PDF tiene varias páginas, solo se procesa la primera." — ese mensaje ya quedó desactualizado (26/08/2026) y debería quitarse o corregirse.
-
 Hay **tres formas** de crear/completar un documento, según el flujo de tu UI:
 
 **A. Todo en un solo paso** (cuando ya tienes el archivo listo, ej. una foto recién tomada):
@@ -267,13 +264,9 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 
 `q` es obligatorio. `highlight` trae el fragmento del texto con las coincidencias marcadas como `<b>palabra</b>` (útil para mostrar directo en la UI). Solo encuentra documentos que ya terminaron de procesarse.
 
-## 5. Qué NO está listo todavía
+## 5. Límites de tasa (rate limiting)
 
-Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
-
-Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
-- `POST /auth/logout` revoca el refresh token y, si se manda el header `Authorization`, también el access token — el frontend ya lo llama desde `api/auth/logout` (18/09/2026).
-- Rate limiting: ya cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). **(actualizado 14/09/2026)** — antes solo cubría login/refresh/uploads.
+Cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). Todos responden `429` con el detalle en `detail` al superarse.
 
 ## 6. Errores comunes a manejar en el frontend
 
