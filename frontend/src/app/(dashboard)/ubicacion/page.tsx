@@ -48,6 +48,7 @@ function UbicacionContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showingDocs, setShowingDocs] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const crumbs = useMemo(() => {
     const items: { label: string; href: string }[] = [{ label: "Archivo físico", href: "/ubicacion" }];
@@ -130,6 +131,10 @@ function UbicacionContent() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setSearchTerm("");
+  }, [shelf, division, column, volume]);
+
   function goToNode(value: string) {
     const next = new URLSearchParams();
     if (currentLevel === "shelf") {
@@ -153,14 +158,18 @@ function UbicacionContent() {
   const meta = LEVEL_META[currentLevel];
   const parentHref = crumbs.length > 1 ? crumbs[crumbs.length - 2].href : null;
 
+  const filteredNodes = nodes.filter((node) =>
+    node.value.toLowerCase().includes(searchTerm.trim().toLowerCase()),
+  );
+
   return (
     <>
       <div className="mb-8">
         <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
-          Ubicación física
+          Archivo
         </h2>
         <p className="text-sm text-on-surface-variant max-w-2xl">
-          Navega el archivo real: estante → división → columna → tomo.
+          Navega el archivo físico: estante, división, columna y tomo.
         </p>
       </div>
 
@@ -244,32 +253,53 @@ function UbicacionContent() {
             <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
             <h3 className="text-sm font-semibold text-on-surface">{meta.plural}</h3>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {nodes.map((node) => (
-              <button
-                key={node.value}
-                type="button"
-                onClick={() => goToNode(node.value)}
-                className="text-left bg-white rounded-2xl border border-outline-variant p-4 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                    <Icon name={meta.icon} className="text-xl" />
-                  </div>
-                  <Icon
-                    name="chevron_right"
-                    className="text-on-surface-variant group-hover:text-primary transition-colors"
-                  />
-                </div>
-                <p className="mt-3 text-sm font-semibold text-on-surface truncate">
-                  {meta.label} {node.value}
-                </p>
-                <p className="mt-1 text-xs text-on-surface-variant">
-                  {node.document_count} documento{node.document_count === 1 ? "" : "s"}
-                </p>
-              </button>
-            ))}
+
+          <div className="relative mb-4">
+            <Icon
+              name="search"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant"
+            />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder={`Buscar ${meta.plural.toLowerCase()}...`}
+              className="w-full bg-white border border-outline-variant rounded-2xl py-2.5 pl-10 pr-4 text-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
           </div>
+
+          {filteredNodes.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-outline-variant py-10 text-center text-sm text-on-surface-variant">
+              No hay coincidencias para “{searchTerm.trim()}”.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredNodes.map((node) => (
+                <button
+                  key={node.value}
+                  type="button"
+                  onClick={() => goToNode(node.value)}
+                  className="text-left bg-white rounded-2xl border border-outline-variant p-4 hover:border-primary/40 hover:bg-primary/5 transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Icon name={meta.icon} className="text-xl" />
+                    </div>
+                    <Icon
+                      name="chevron_right"
+                      className="text-on-surface-variant group-hover:text-primary transition-colors"
+                    />
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-on-surface truncate">
+                    {meta.label} {node.value}
+                  </p>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {node.document_count} documento{node.document_count === 1 ? "" : "s"}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
         </>
       )}
     </>
