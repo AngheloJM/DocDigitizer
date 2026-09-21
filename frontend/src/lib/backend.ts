@@ -25,6 +25,7 @@ export type DocumentListFilters = {
   archivedMonthFrom?: number | null;
   archivedMonthTo?: number | null;
   assignedToId?: string | null;
+  includeDeleted?: boolean;
 };
 
 
@@ -142,6 +143,9 @@ export const backend = {
       if (filters.assignedToId)
         params.set("assigned_to_id", filters.assignedToId);
 
+      if (filters.includeDeleted)
+        params.set("include_deleted", "true");
+
       return api<Paginated<DocumentItem>>(
         `/documents?${params.toString()}`
       );
@@ -207,6 +211,16 @@ export const backend = {
         task_id: string | null;
         status: string;
       }>(`/documents/${id}/reprocess`, {
+        method: "POST",
+      }),
+
+    remove: (id: string) =>
+      api<void>(`/documents/${id}`, {
+        method: "DELETE",
+      }),
+
+    restore: (id: string) =>
+      api<DocumentItem>(`/documents/${id}/restore`, {
         method: "POST",
       }),
 

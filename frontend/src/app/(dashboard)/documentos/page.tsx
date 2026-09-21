@@ -33,6 +33,7 @@ function DocumentosContent() {
 
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [view, setView] = useState<"table" | "grid">("table");
+  const [showTrash, setShowTrash] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -40,6 +41,7 @@ function DocumentosContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(openUpload);
+  const [trashBusyId, setTrashBusyId] = useState<string | null>(null);
 
   const [yearFilter, setYearFilter] = useState("");
   const [monthFromFilter, setMonthFromFilter] = useState("");
@@ -95,6 +97,7 @@ function DocumentosContent() {
         physicalShelf: shelfFilter.trim() || null,
         statusFilter: statusFilter || null,
         assignedToId: assignmentFilter === "mine" ? user.id : null,
+        includeDeleted: showTrash,
       });
 
       if (requestId !== listRequestRef.current) return;
@@ -107,7 +110,7 @@ function DocumentosContent() {
     } finally {
       if (requestId === listRequestRef.current) setLoading(false);
     }
-  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter]);
+  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter, showTrash]);
 
   useEffect(() => {
     void loadUsers();
@@ -119,6 +122,7 @@ function DocumentosContent() {
   }, [load]);
 
   useEffect(() => {
+    if (showTrash) return;
     const pending = items.filter((item) =>
       ["pending", "processing", "reprocessing"].includes(item.status),
     );
@@ -148,7 +152,7 @@ function DocumentosContent() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [items]);
+  }, [items, showTrash]);
 
 
   function openScanPicker(docId: string) {
@@ -243,6 +247,44 @@ function DocumentosContent() {
     }
   }
 
+  async function onMoveToTrash(docId: string) {
+    if (trashBusyId) return;
+    const confirmed = window.confirm("¿Mover este documento a la papelera?");
+    if (!confirmed) return;
+    setTrashBusyId(docId);
+    setError(null);
+    try {
+      await backend.documents.remove(docId);
+      if (items.length === 1 && pagina > 1) {
+        setPagina((current) => current - 1);
+        return;
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo mover el documento a la papelera");
+    } finally {
+      setTrashBusyId(null);
+    }
+  }
+
+  async function onRestore(docId: string) {
+    if (trashBusyId) return;
+    setTrashBusyId(docId);
+    setError(null);
+    try {
+      await backend.documents.restore(docId);
+      if (items.length === 1 && pagina > 1) {
+        setPagina((current) => current - 1);
+        return;
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo restaurar el documento");
+    } finally {
+      setTrashBusyId(null);
+    }
+  }
+
   function assigneeLabel(doc: DocumentItem) {
     if (!doc.assigned_to_id) return "Sin asignar";
     if (user && doc.assigned_to_id === user.id) return "Asignado a mí";
@@ -275,6 +317,13 @@ function DocumentosContent() {
   }
 
   function renderAssignment(doc: DocumentItem) {
+    if (showTrash) {
+      return (
+        <span className="text-xs text-on-surface-variant">
+          {assigneeLabel(doc)}
+        </span>
+      );
+    }
     return (
       <div className="min-w-0 [overflow-wrap:anywhere]">
         {staff ? (
@@ -309,6 +358,24 @@ function DocumentosContent() {
   }
 
   function renderActions(doc: DocumentItem) {
+    if (showTrash) {
+      return (
+        <div className="inline-flex flex-wrap items-center gap-1 justify-end">
+          <button
+            type="button"
+            onClick={() => void onRestore(doc.id)}
+            disabled={trashBusyId === doc.id}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-2xl px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+            title="Restaurar documento"
+            aria-label={`Restaurar ${doc.title}`}
+          >
+            <Icon name="restore" className="text-lg" />
+            {trashBusyId === doc.id ? "Restaurando…" : "Restaurar"}
+          </button>
+        </div>
+      );
+    }
+
     return (
       <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
         {canEditDocument(doc) && (
@@ -344,6 +411,19 @@ function DocumentosContent() {
             <Icon name="download" className="text-lg" />
           </a>
         ) : null}
+
+        {canEditDocument(doc) && (
+          <button
+            type="button"
+            onClick={() => void onMoveToTrash(doc.id)}
+            disabled={trashBusyId === doc.id}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-error-container hover:text-error focus:outline-none focus:ring-2 focus:ring-error/20 disabled:opacity-50"
+            title="Mover a papelera"
+            aria-label={`Mover ${doc.title} a la papelera`}
+          >
+            <Icon name="delete" className="text-lg" />
+          </button>
+        )}
       </div>
     );
   }
@@ -361,23 +441,42 @@ function DocumentosContent() {
       <div className="flex flex-col xl:flex-row gap-4 items-start justify-between mb-8">
         <div className="min-w-0">
           <h2 className="text-2xl md:text-[28px] font-semibold text-on-surface tracking-tight mb-2">
-            Documentos
+            {showTrash ? "Papelera" : "Documentos"}
           </h2>
           <p className="text-sm text-on-surface-variant max-w-2xl">
-            Listado del archivo con ubicación, período y asignación. Los pendientes pueden recibir el
-            escaneo después.
+            {showTrash
+              ? "Documentos eliminados que pueden restaurarse."
+              : "Listado del archivo con ubicación, período y asignación. Los pendientes pueden recibir el escaneo después."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditingDocument(null);
-            setUploading(true);
-          }}
-          className="w-full sm:w-auto shrink-0 min-h-11 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
-        >
-          <Icon name="upload" className="text-lg" /> Subir documento
-        </button>
+        <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-2">
+          {staff && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowTrash((current) => !current);
+                setPagina(1);
+                setError(null);
+              }}
+              className="w-full sm:w-auto shrink-0 min-h-11 border border-outline-variant text-on-surface text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-surface-container transition-colors whitespace-nowrap"
+            >
+              <Icon name={showTrash ? "arrow_back" : "delete"} className="text-lg" />
+              {showTrash ? "Volver a documentos" : "Papelera"}
+            </button>
+          )}
+          {!showTrash && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingDocument(null);
+                setUploading(true);
+              }}
+              className="w-full sm:w-auto shrink-0 min-h-11 bg-primary text-white text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-primary-light transition-colors whitespace-nowrap shadow-sm"
+            >
+              <Icon name="upload" className="text-lg" /> Subir documento
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="min-w-0 bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -513,7 +612,7 @@ function DocumentosContent() {
           <div className="py-8 text-center text-on-surface-variant text-sm">Cargando documentos...</div>
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-on-surface-variant text-sm">
-            No hay documentos con estos filtros.
+            {showTrash ? "La papelera está vacía." : "No hay documentos con estos filtros."}
           </div>
         ) : view === "grid" ? (
           <ul aria-label="Documentos en tarjetas" className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">

@@ -51,18 +51,25 @@ async def test_soft_deleted_document_is_hidden_from_get_document(db_session, tes
 
 @pytest.mark.asyncio
 async def test_soft_deleted_document_is_hidden_from_list_documents(db_session, test_user):
-    document = await create_document(db_session, test_user.id, DocumentCreate(title="Acta"))
-    await soft_delete_document(db_session, document)
+    active = await create_document(db_session, test_user.id, DocumentCreate(title="Activo"))
+    deleted = await create_document(db_session, test_user.id, DocumentCreate(title="Borrado"))
+    await soft_delete_document(db_session, deleted)
 
     items, total = await list_documents(db_session, test_user, page=1, per_page=20)
-    assert document.id not in {item.id for item in items}
+    ids = {item.id for item in items}
+    assert active.id in ids
+    assert deleted.id not in ids
 
-    items_with_deleted, _ = await list_documents(
+    trash_items, trash_total = await list_documents(
         db_session, test_user, page=1, per_page=20, include_deleted=True
     )
-    assert document.id in {item.id for item in items_with_deleted}
+    trash_ids = {item.id for item in trash_items}
+    assert deleted.id in trash_ids
+    assert active.id not in trash_ids
+    assert trash_total >= 1
 
-    await delete_document(db_session, document)
+    await delete_document(db_session, active)
+    await delete_document(db_session, deleted)
 
 
 @pytest.mark.asyncio

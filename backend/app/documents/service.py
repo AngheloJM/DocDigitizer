@@ -172,7 +172,11 @@ async def list_documents(
     query = select(Document)
     count_query = select(func.count()).select_from(Document)
 
-    if not include_deleted:
+    if include_deleted:
+        # Modo papelera: solo documentos soft-deleted (paginación coherente).
+        query = query.where(Document.deleted_at.isnot(None))
+        count_query = count_query.where(Document.deleted_at.isnot(None))
+    else:
         query = query.where(Document.deleted_at.is_(None))
         count_query = count_query.where(Document.deleted_at.is_(None))
 
