@@ -27,9 +27,10 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 **⏳ Pendiente:**
 
-1. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar. No bloquea el uso básico del sistema.
+_(ninguno bloqueante en frontend ahora mismo)_
 
 **✅ Resuelto recientemente** (se deja el detalle por si sirve de referencia técnica):
+- Papelera / restaurar (rama `frontend/fix-papelera`): botón “Mover a papelera” (`DELETE /documents/{id}`), vista Papelera en `/documentos` con `?include_deleted=true` (solo staff; lista **solo** borrados, con paginación correcta) y “Restaurar” (`POST /documents/{id}/restore`).
 - Botón de reprocesar (21/09/2026): `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
 - Motivo del fallo visible: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`, traducido con `failureReason()` en `lib/types.ts`).
 - Filtro por rango de meses en `/documentos` (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
@@ -244,7 +245,7 @@ Estados posibles de `status`: `pending` → `processing` → `completed` (o `fai
 >
 > 📋 **(nuevo, 14/09/2026) Motivo del fallo visible**: `GET /documents/{id}/status` y el detalle del documento (`GET /documents/{id}`) ahora traen `error_message` (string o `null`). Antes, cuando un documento quedaba en `failed`, no había forma de saber por qué desde el frontend — ahora se puede mostrar el motivo (ej. "El documento no tiene un archivo original asociado") en vez de un genérico "algo salió mal".
 >
-> 🗑️ **(nuevo, 14/09/2026) Borrar documentos ya no es irreversible**: `DELETE /documents/{id}` pasó a ser un soft-delete — el documento y sus archivos en MinIO se conservan, solo se marca `deleted_at` y deja de aparecer en listados/búsqueda/detalle. `POST /documents/{id}/restore` lo recupera (responde el documento actualizado, con `deleted_at: null`). Si quieren armar una vista de "papelera", `GET /documents?include_deleted=true` la trae (solo tiene efecto para `admin`/`super_admin`; un `student` que lo pase se ignora silenciosamente y ve lo de siempre).
+> 🗑️ **(nuevo, 14/09/2026) Borrar documentos ya no es irreversible**: `DELETE /documents/{id}` pasó a ser un soft-delete — el documento y sus archivos en MinIO se conservan, solo se marca `deleted_at` y deja de aparecer en listados/búsqueda/detalle. `POST /documents/{id}/restore` lo recupera (responde el documento actualizado, con `deleted_at: null`). Para la vista de papelera, `GET /documents?include_deleted=true` lista **solo** los soft-deleted (con `total`/`pages` coherentes). Solo tiene efecto para `admin`/`super_admin`; un `student` que lo pase se ignora silenciosamente y ve lo de siempre.
 
 **Filtro por rango de meses (nuevo, 07/09/2026):** `?archived_month_from=` y `?archived_month_to=` (ambos 1-12, ambos opcionales, se pueden usar solo, o los dos juntos). Filtra por el período archivado del documento (`archived_month_start`/`archived_month_end`), sin importar el año — combínalo con `?archived_year=` si además querés acotar a un año puntual. Ej: `?archived_month_from=3&archived_month_to=7` trae los documentos cuyo período se solapa con marzo-julio (de cualquier año). Los documentos sin `archived_month_start` (sin período cargado) quedan afuera de este filtro.
 
