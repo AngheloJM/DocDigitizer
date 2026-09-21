@@ -4,7 +4,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 > 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
-## Estado actual (2026-09-20)
+## Estado actual (2026-09-21)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
@@ -27,7 +27,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 **⏳ Pendiente — prioridad media:**
 
-4. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
+4. ~~Ajustar el botón de reprocesar~~ — **ya construido** (21/09/2026): nuevo componente `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
 5. ~~Mostrar el motivo del fallo~~ — **ya construido**: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`). El `error_message` del backend se traduce con `failureReason()` en `lib/types.ts`: los fallos que el usuario puede entender (archivo dañado, PDF con contraseña, sin archivo, tiempo agotado) se muestran con un mensaje claro, y cualquier otro error interno (base de datos, almacenamiento, etc.) se muestra como un mensaje general, sin detalles técnicos.
 6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
 7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
