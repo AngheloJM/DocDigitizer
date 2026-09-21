@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
@@ -173,6 +174,7 @@ export default function InicioPage() {
                   <p className="text-xs text-on-surface-variant mt-1 truncate">
                     {formatPhysicalLocation(doc)} · {formatArchivedPeriod(doc)}
                   </p>
+                  <FailureReason status={doc.status} errorMessage={doc.error_message} />
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
                   <StatusBadge status={doc.status} />

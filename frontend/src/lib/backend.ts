@@ -195,6 +195,7 @@ export const backend = {
       api<{
         status: string;
         processed_at: string | null;
+        error_message: string | null;
       }>(`/documents/${id}/status`),
 
     reprocess: (id: string) =>

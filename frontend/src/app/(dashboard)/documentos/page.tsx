@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type Chang
 import { useRouter, useSearchParams } from "next/navigation";
 import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagina } from "@/components/ui/paginacion";
@@ -31,6 +32,7 @@ function DocumentosContent() {
   const staff = Boolean(user && isStaff(user.role));
 
   const [items, setItems] = useState<DocumentItem[]>([]);
+  const [view, setView] = useState<"table" | "grid">("table");
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -125,7 +127,12 @@ function DocumentosContent() {
           current.map((item) => {
             const index = pending.findIndex((row) => row.id === item.id);
             if (index < 0) return item;
-            return { ...item, status: updates[index].status, processed_at: updates[index].processed_at };
+            return {
+              ...item,
+              status: updates[index].status,
+              processed_at: updates[index].processed_at,
+              error_message: updates[index].error_message,
+            };
           }),
         );
       } catch {
@@ -233,6 +240,119 @@ function DocumentosContent() {
     if (!doc.assigned_to_id) return "Sin asignar";
     if (user && doc.assigned_to_id === user.id) return "Asignado a mí";
     return usersById.get(doc.assigned_to_id)?.full_name ?? "Usuario asignado";
+  }
+
+  function renderDocumentTitle(doc: DocumentItem) {
+    const assignedToMe = Boolean(user && doc.assigned_to_id === user.id);
+    const isOwn = Boolean(user && doc.user_id === user.id);
+    return (
+      <div className="min-w-0 [overflow-wrap:anywhere]">
+        <p className="max-w-xs wrap-break-words font-medium text-on-surface">{doc.title}</p>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {doc.doc_type && (
+            <span className="max-w-xs wrap-break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
+          )}
+          {assignedToMe && (
+            <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
+              Asignado a mí
+            </span>
+          )}
+          {!staff && isOwn && !assignedToMe && (
+            <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+              Propio
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderAssignment(doc: DocumentItem) {
+    return (
+      <div className="min-w-0 [overflow-wrap:anywhere]">
+        {staff ? (
+          <select
+            value={doc.assigned_to_id ?? ""}
+            aria-label={`Asignar documento: ${doc.title}`}
+            disabled={assigningId === doc.id}
+            onChange={(event) => {
+              if (event.target.value) void onAssign(doc.id, event.target.value);
+            }}
+            className="w-full min-w-0 max-w-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+          >
+            <option value="">
+              {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
+            </option>
+            {doc.assigned_to_id && !usersById.has(doc.assigned_to_id) && (
+              <option value={doc.assigned_to_id}>{assigneeLabel(doc)}</option>
+            )}
+            {users.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.full_name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-on-surface-variant">
+            {assigneeLabel(doc)}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  function renderActions(doc: DocumentItem) {
+    return (
+      <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
+        {canEditDocument(doc) && (
+          <button
+            type="button"
+            onClick={() => {
+              setUploading(false);
+              setEditingDocument(doc);
+            }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            title="Editar documento"
+            aria-label={`Editar ${doc.title}`}
+          >
+            <Icon name="edit" className="text-lg" />
+          </button>
+        )}
+        {needsScanUpload(doc.status) && (
+          <button
+            type="button"
+            onClick={() => openScanPicker(doc.id)}
+            disabled={scanBusy}
+            className="text-primary hover:bg-primary/5 p-1.5 rounded-2xl inline-flex"
+            title="Subir escaneo"
+          >
+            <Icon name="upload_file" className="text-lg" />
+          </button>
+        )}
+
+        {doc.status === "completed" && canEditDocument(doc) && (
+          <button
+            type="button"
+            onClick={() => void onReprocess(doc.id)}
+            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
+            title="Reprocesar documento"
+            aria-label={`Reprocesar ${doc.title}`}
+          >
+            <Icon name="refresh" className="text-lg" />
+          </button>
+        )}
+
+        {doc.status === "completed" ? (
+          <a
+            href={backend.documents.downloadUrl(doc.id)}
+            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
+            title="Descargar"
+          >
+            <Icon name="download" className="text-lg" />
+          </a>
+        ) : null}
+      </div>
+    );
   }
 
   return (
@@ -371,11 +491,30 @@ function DocumentosContent() {
       {scanBusy && <p className="text-sm text-on-surface-variant mb-4">Subiendo escaneo...</p>}
 
       <div className="min-w-0 max-w-full bg-white rounded-2xl border border-outline-variant">
-        <div className="p-4 border-b border-outline-variant flex items-center justify-between gap-3">
-          <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
-          <p className="text-xs text-on-surface-variant">
-            {total} documento{total === 1 ? "" : "s"}
-          </p>
+        <div className="p-4 border-b border-outline-variant flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-on-surface">Listado</h3>
+            <p className="mt-1 text-xs text-on-surface-variant">{total} documento{total === 1 ? "" : "s"}</p>
+          </div>
+          <div role="group" aria-label="Vista de documentos" className="inline-flex rounded-2xl border border-outline-variant p-1">
+            {([
+              { value: "table", label: "Tabla", icon: "view_list" },
+              { value: "grid", label: "Tarjetas", icon: "grid_view" },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={view === option.value}
+                onClick={() => setView(option.value)}
+                className={"inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary " + (
+                  view === option.value ? "bg-primary text-white" : "text-on-surface-variant hover:bg-surface-container"
+                )}
+              >
+                <span aria-hidden="true"><Icon name={option.icon} className="text-lg" /></span>
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         {loading ? (
           <div className="py-8 text-center text-on-surface-variant text-sm">Cargando documentos...</div>
@@ -383,6 +522,37 @@ function DocumentosContent() {
           <div className="py-8 text-center text-on-surface-variant text-sm">
             No hay documentos con estos filtros.
           </div>
+        ) : view === "grid" ? (
+          <ul aria-label="Documentos en tarjetas" className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 2xl:grid-cols-3">
+            {items.map((doc) => (
+              <li key={doc.id} className={"flex min-w-0 flex-col gap-4 rounded-2xl border border-outline-variant p-4 " + (
+                user && doc.assigned_to_id === user.id ? "bg-secondary-container/40" : "bg-white"
+              )}>
+                {renderDocumentTitle(doc)}
+                <div>
+                  <StatusBadge status={doc.status} />
+                  <FailureReason status={doc.status} errorMessage={doc.error_message} />
+                </div>
+                <dl className="space-y-3 text-sm [overflow-wrap:anywhere]">
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Período</dt>
+                    <dd className="mt-1 text-on-surface">{formatArchivedPeriod(doc)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Ubicación</dt>
+                    <dd className="mt-1 text-on-surface">{formatPhysicalLocation(doc)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-on-surface-variant">Asignación</dt>
+                    <dd className="mt-1">{renderAssignment(doc)}</dd>
+                  </div>
+                </dl>
+                <div className="mt-auto flex justify-end border-t border-outline-variant pt-3">
+                  {renderActions(doc)}
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : (
           <div
             className="max-w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-primary"
@@ -404,7 +574,6 @@ function DocumentosContent() {
               <tbody className="text-sm">
                 {items.map((doc) => {
                   const assignedToMe = Boolean(user && doc.assigned_to_id === user.id);
-                  const isOwn = Boolean(user && doc.user_id === user.id);
 
                   return (
                     <tr
@@ -414,22 +583,7 @@ function DocumentosContent() {
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <p className="max-w-xs wrap-break-words font-medium text-on-surface">{doc.title}</p>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          {doc.doc_type && (
-                            <span className="max-w-xs wrap-break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
-                          )}
-                          {assignedToMe && (
-                            <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
-                              Asignado a mí
-                            </span>
-                          )}
-                          {!staff && isOwn && !assignedToMe && (
-                            <span className="inline-flex items-center text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                              Propio
-                            </span>
-                          )}
-                        </div>
+                        {renderDocumentTitle(doc)}
                       </td>
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
@@ -438,87 +592,14 @@ function DocumentosContent() {
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
-                        {staff ? (
-                          <select
-                            value={doc.assigned_to_id ?? ""}
-                            aria-label={`Asignar documento: ${doc.title}`}
-                            disabled={assigningId === doc.id}
-                            onChange={(event) => {
-                              if (event.target.value) void onAssign(doc.id, event.target.value);
-                            }}
-                            className="w-full min-w-0 max-w-[180px] max-xl:min-h-11 border border-outline-variant rounded-2xl bg-white px-2 py-1.5 text-base xl:text-xs focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                          >
-                            <option value="">
-                              {doc.assigned_to_id ? assigneeLabel(doc) : "Asignar a…"}
-                            </option>
-                            {doc.assigned_to_id && !usersById.has(doc.assigned_to_id) && (
-                              <option value={doc.assigned_to_id}>{assigneeLabel(doc)}</option>
-                            )}
-                            {users.map((row) => (
-                              <option key={row.id} value={row.id}>
-                                {row.full_name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-xs text-on-surface-variant">
-                            {assigneeLabel(doc)}
-                          </span>
-                        )}
+                        {renderAssignment(doc)}
                       </td>
                       <td className="py-3 px-4">
                         <StatusBadge status={doc.status} />
+                        <FailureReason status={doc.status} errorMessage={doc.error_message} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
-                          {canEditDocument(doc) && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setUploading(false);
-                                setEditingDocument(doc);
-                              }}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                              title="Editar documento"
-                              aria-label={`Editar ${doc.title}`}
-                            >
-                              <Icon name="edit" className="text-lg" />
-                            </button>
-                          )}
-                          {needsScanUpload(doc.status) && (
-                            <button
-                              type="button"
-                              onClick={() => openScanPicker(doc.id)}
-                              disabled={scanBusy}
-                              className="text-primary hover:bg-primary/5 p-1.5 rounded-2xl inline-flex"
-                              title="Subir escaneo"
-                            >
-                              <Icon name="upload_file" className="text-lg" />
-                            </button>
-                          )}
-
-                          {doc.status === "completed" && canEditDocument(doc) && (
-                          <button
-                           type="button"
-                            onClick={() => void onReprocess(doc.id)}
-                            className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
-                             title="Reprocesar documento"
-                            aria-label={`Reprocesar ${doc.title}`}
-                             >
-                             <Icon name="refresh" className="text-lg" />
-                             </button>
-                          )}
-                          
-                          {doc.status === "completed" ? (
-                            <a
-                              href={backend.documents.downloadUrl(doc.id)}
-                              className="text-on-surface-variant hover:text-primary p-1.5 rounded-2xl hover:bg-primary/5 inline-flex"
-                              title="Descargar"
-                            >
-                              <Icon name="download" className="text-lg" />
-                            </a>
-                          ) : null}
-                        </div>
+                        {renderActions(doc)}
                       </td>
                     </tr>
                   );

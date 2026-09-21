@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
@@ -228,6 +229,7 @@ function UbicacionContent() {
                       <span>{formatArchivedPeriod(doc)}</span>
                       <span>{formatPhysicalLocation(doc)}</span>
                     </div>
+                    <FailureReason status={doc.status} errorMessage={doc.error_message} />
                   </div>
                   {doc.status === "completed" && (
                     <a
