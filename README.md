@@ -41,8 +41,24 @@ Si sos usuario del sistema y tenés dudas sobre cuándo vas a poder usarlo de fo
 
 **Notas del despliegue free tier:**
 - Render free tier no permite "Background Worker", así que el worker corre como un Web Service normal con un wrapper FastAPI (`app/worker_web_wrapper.py`) que lanza Celery como subproceso y expone `/health`. La API dispara un ping a esa URL (`WORKER_WAKE_URL`) justo después de encolar cada tarea, para ayudar a despertar al worker si estaba dormido — no es 100% confiable (puede tardar 30-50s en despertar), es un mitigante, no una solución de tiempo real.
-- El worker corre con `--concurrency=1 --pool=solo` (ver `Dockerfile` y `worker_web_wrapper.py`) porque el free tier de Render da solo 512MB de RAM — con concurrencia mayor, el pipeline de OCR (Tesseract/OpenCV) agotaba la memoria y el proceso moría a mitad de una tarea sin reportar el fallo.
+- El worker corre con `--concurrency=1 --pool=prefork -B` (ver `Dockerfile` y `worker_web_wrapper.py`) — un único proceso hijo (necesario para poder aplicarle límites de tiempo y reciclarlo) más Celery Beat embebido en el mismo proceso, sin agregar un servicio nuevo en Render. El free tier da solo 512MB de RAM, así que el pipeline de OCR (Tesseract/OpenCV) puede agotar memoria en archivos grandes; para que eso no cuelgue el worker para siempre (pasó, ~16/09/2026), ahora hay límite de tiempo por tarea (10-11 min), reciclado del proceso cada 20 tareas, y una revisión automática cada 5 min que reencola cualquier documento que quede "huérfano" en `processing`.
 - `CORS_ALLOWED_ORIGINS` está temporalmente en `["*"]` en producción — pendiente de restringir a la URL real del frontend una vez que el equipo de frontend confirme que quedó estable.
+
+### Alternativa: despliegue on-premise (dentro de la universidad)
+
+Si UTEPSA decide no depender de servicios externos, los mismos 5 componentes lógicos pueden correr **self-hosted** en un servidor propio, sin contratar nada:
+
+| Componente | Hoy (nube) | On-premise |
+|---|---|---|
+| API (FastAPI) | Render | Contenedor Docker en un servidor de la universidad |
+| Worker OCR/PDF (Celery) | Render + wrapper | Contenedor Docker (sin el wrapper — ese existe solo para esquivar la limitación de "Background Worker" del free tier de Render) |
+| Base de datos | Neon | PostgreSQL propio (contenedor) |
+| Cola/broker | Upstash | Redis propio (contenedor) |
+| Almacenamiento | Cloudflare R2 | MinIO propio (contenedor) |
+
+El `docker-compose.yml` de este repo ya define los 5 componentes como contenedores (es literalmente lo que se usa en desarrollo local) — pasar a producción on-premise es, en esencia, tomar ese mismo compose con ajustes de producción (contraseñas reales en vez de `changeme`, volúmenes con backup, no exponer los puertos internos a internet) y correrlo en un servidor real en vez de una laptop de desarrollo. Ventaja: los problemas de esta semana (worker que se queda sin memoria, que se duerme, que tarda 30-50s en despertar) son consecuencia directa de las limitaciones del free tier de Render — un servidor con recursos dedicados los elimina de raíz. Falta definir el tamaño de servidor necesario (RAM/CPU/disco) según el volumen real de documentos.
+
+⚠️ **Cuidado con las herramientas de "limpieza" al operar Docker on-premise**: los volúmenes (`postgres_data`, `minio_data`) son volúmenes *nombrados* de Docker — en Windows con Docker Desktop viven dentro del disco virtual de la distro WSL2, no en una carpeta temporal de Windows, así que un limpiador de archivos temporales normal no debería tocarlos. Lo que sí los borra: `docker compose down -v` (el `-v` elimina los volúmenes), `docker system prune --volumes`, o la opción "Clean / Purge data" de Docker Desktop — algunas suites de "optimización de sistema" incluyen un módulo que ejecuta justamente esto. En producción, nunca corran esos comandos sin un backup reciente de los volúmenes.
 
 ## Backend — guía rápida para el equipo de frontend
 
@@ -84,6 +100,9 @@ No hay auto-registro público. Las cuentas siempre las crea alguien del staff (`
 | GET | `/api/v1/auth/users` | Lista usuarios que puedes gestionar (`admin` ve `student`; `super_admin` ve `admin` y `student`). Filtro opcional `role_filter` |
 | GET | `/api/v1/auth/users/{id}` | Detalle de un usuario que puedes gestionar (404 si no está en tu alcance) |
 | PATCH | `/api/v1/auth/users/{id}` | Cambia `role`, `is_active` y/o `password` (reseteo, solo `super_admin`). Un usuario desactivado no puede loguearse (403) y sus tokens ya emitidos dejan de servir en la siguiente petición |
+| POST | `/api/v1/auth/logout` | Revoca el `refresh_token` enviado. Si además se manda el header `Authorization`, invalida ese `access_token` de inmediato (blacklist) |
+| POST | `/api/v1/auth/logout-all` | Cierra todas las sesiones activas del usuario autenticado (todos los refresh + access tokens ya emitidos) |
+| POST | `/api/v1/auth/users/{id}/revoke-sessions` | Igual que `logout-all` pero forzado por un `admin`/`super_admin` sobre un usuario que gestiona |
 
 El `access_token` (JWT) dura 15 minutos. El `refresh_token` dura 7 días — el frontend debe guardarlo y usarlo contra `/auth/refresh` para renovar la sesión sin pedir contraseña de nuevo, y actualizar ambos tokens guardados cada vez (rotación).
 
@@ -130,7 +149,7 @@ Para que el procesamiento corra, el worker debe estar levantado: `docker compose
 | POST | `/api/v1/documents` | Crea el registro de un documento sin archivo (`title`, `description`?, `doc_type`?, `folder_id`?, `physical_shelf`?, `physical_division`?, `physical_column`?, `physical_volume`?) |
 | POST | `/api/v1/documents/upload` | Crea el documento y sube el archivo en un solo paso (multipart: `file`, `title`, `description`?, `doc_type`?, `folder_id`?) |
 | POST | `/api/v1/documents/{id}/upload` | Sube el archivo a un documento ya creado sin archivo (multipart: `file`). Responde `409` si el documento ya tiene uno |
-| GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type`, `physical_shelf` |
+| GET | `/api/v1/documents` | Lista paginada (`page`, `per_page`) con filtros `folder_id`, `status_filter`, `doc_type`, `physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, `archived_year`, `archived_month_from`, `archived_month_to`, `owner_id`, `assigned_to_id`, `include_deleted` (solo staff) |
 | GET | `/api/v1/documents/{id}` | Detalle completo (incluye `original_image`, `generated_pdf`, `extracted_text` si ya existen) |
 | GET | `/api/v1/documents/{id}/status` | Solo el estado — pensado para polling ligero desde el frontend |
 | GET | `/api/v1/documents/{id}/download` | Descarga el PDF procesado (o el archivo original si aun no termino de procesarse) |

@@ -2,31 +2,39 @@
 
 Este documento resume qué puedes construir **ya mismo** contra el backend, cómo funciona cada flujo, y qué falta todavía. Se actualiza a medida que se integran nuevos módulos a `main`.
 
-
-## Estado actual (2026-09-13)
-=======
 > 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
-## Estado actual (2026-09-10)
-
+## Estado actual (2026-09-20)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
 - Dashboard shell (Sidebar, TopBar con búsqueda rápida).
 - **Inicio** (`/inicio`, nuevo 13/09/2026): resumen con total, pendientes y completados, y los últimos documentos registrados. El login ya no redirige a `/carpetas`.
-- **Ubicación física** (`/ubicacion`, nuevo 10/09/2026): navega el archivo real (estante → división → columna → tomo) usando `GET /documents/locations`, con breadcrumbs y lista de documentos al llegar al último nivel.
-- **Carpetas** (`/carpetas`): listar, crear, eliminar, navegar subcarpetas (`?parent_id=`), ver documentos dentro de una carpeta.
-- **Documentos** (`/documentos`): listar con filtros (año archivado, estante, estado, asignación), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
+- **Archivo** (`/ubicacion`, unificado en `frontend/unificar-archivo`): una sola pestaña en el menú. Navega el archivo real (estante → división → columna → tomo) con `GET /documents/locations`, con buscador de texto sobre el nivel actual. `/carpetas` redirige aquí. El árbol manual de carpetas ya no está en el menú; asignar una carpeta sigue existiendo al editar un documento.
+- **Documentos** (`/documentos`): listar con filtros (año archivado, rango de mes archivado, estante, estado, asignación — nuevo 17/09/2026), paginación de a 10 (ordenado del más reciente al más antiguo), columnas de período/ubicación física/asignación, subir en un solo paso o adjuntar escaneo a un documento ya registrado sin archivo, polling de estado, descargar cuando está `completed`.
 - **Editar documento** (`DocumentEditModal`): título, tipo, carpeta (árbol jerárquico), ubicación física y período archivado. Visible para staff, el dueño, o el usuario asignado.
 - **Asignación de documentos**: el staff puede asignarle cualquier documento a un usuario activo desde un selector en la tabla; indicador visual y filtro "Asignados a mí".
 - **Búsqueda** (`/busqueda`): búsqueda simple por texto (`q`), muestra período/ubicación, resalta coincidencias.
-- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas** y **cambiar de rol** (solo `super_admin` ve el botón de cambiar rol).
+- **Usuarios** (`/usuarios`): listar usuarios en tu alcance, activar/desactivar, **crear cuentas nuevas**, **cambiar de rol**, **resetear contraseña** (solo `super_admin`) y **cerrar sesiones** de otro usuario (staff).
 - Admin/super_admin ven documentos y carpetas de **todos** los usuarios por defecto (antes solo veían lo propio).
+- **Sesión endurecida (18/09/2026):** el logout llama a `POST /auth/logout` (revoca refresh + access si manda `Authorization`); el menú de usuario tiene “Cerrar todas las sesiones” (`POST /auth/logout-all`).
+
+**✅ Seguridad de sesión (hardening 14/09, UI lista 18/09/2026):**
+
+1. ~~El logout del frontend no llama al backend~~ — **ya construido**: `api/auth/logout` revoca el refresh (y el access si hay cookie) antes de borrar cookies.
+2. ~~Sin UI para `logout-all` / `revoke-sessions`~~ — **ya construido**: botón en el menú de usuario y “Cerrar sesiones” en `/usuarios`.
+3. ~~Sin UI de reseteo de contraseña~~ — **ya construido**: modal “Resetear clave” para `super_admin` en `/usuarios`.
 
 **⏳ Pendiente — prioridad media:**
 
-1. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
-2. **Filtro por rango de meses** en `/documentos` — el backend ya soporta `?archived_month_from=&archived_month_to=` (ver sección 3), falta el selector en la UI (hoy solo hay filtro por año exacto).
+4. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
+5. **Mostrar el motivo del fallo** (`error_message`, ver sección 3) cuando un documento queda en `"failed"` — hoy el backend lo expone pero no se muestra en ningún lado.
+6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
+7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
+8. ~~Decidir el destino de `/carpetas`~~ — **decidido**: se queda una sola pestaña **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. Implementación oficial: rama `frontend/unificar-archivo` (incluye también el buscador del punto 9). Las otras ramas que tocaban lo mismo (`fix/filtro_meses`, `fix/modal_subirDoc`, PR #72) no deben rehacer esta unificación; si traen otras features, que salgan en PRs aparte.
+9. ~~Buscador de texto dentro de `/carpetas`~~ — **ya construido** en `/ubicacion` (filtra estantes/divisiones/columnas/tomos ya cargados, sin nueva petición al backend).
+10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+11. ~~Modal compartido para subir y editar documentos~~ — **implementado:** se conectó el botón **Subir documento** al modal de edición existente (`DocumentEditModal`), reutilizándolo y unificando las acciones de añadir y editar documentos en un mismo componente, manteniendo el diseño original.
 
 Ninguno de estos bloquea el uso básico del sistema.
 
@@ -43,7 +51,7 @@ Muestra:
 
 Archivos: `frontend/src/app/(dashboard)/inicio/page.tsx`, link en `Sidebar.tsx`, redirección en `login/page.tsx` y `middleware.ts`.
 
-Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`. Esto no unifica Carpetas y Ubicación; esa decisión sigue pendiente.
+Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres tarjetas cargan y que "Ver todos" lleva a `/documentos`.
 
 > ⚠️ Nota para quien construyó `DocumentEditModal`: detectamos y corregimos (07/09/2026) un bug del backend que afectaba directamente a este modal — `PATCH /documents/{id}` ignoraba en silencio cualquier campo enviado explícitamente como `null` (por ejemplo, para quitarle la carpeta a un documento, o borrar el mes final del período). Ya está corregido en `main`; si probaste "borrar carpeta" o "borrar período" antes del 07/09 y no funcionó, ya debería andar bien ahora.
 
@@ -53,8 +61,7 @@ Un compañero de curso armó un mockup visual del mismo tipo de sistema (React +
 
 5. ~~Dashboard/inicio con resumen y "actividad reciente"~~ — **ya construido** como `/inicio` (13/09/2026): tarjetas de total, pendientes y completados, y los últimos documentos (`GET /documents` ordenado por `created_at desc`). El login redirige ahí.
 6. ~~Mapa visual de estantes~~ — **ya construido** como la pantalla `/ubicacion` (10/09/2026), navega estante → división → columna → tomo con `GET /documents/locations`.
-7. **Buscador de categorías/carpetas por texto** dentro de `/carpetas` — un input simple que filtre la lista de carpetas ya cargada por nombre, sin pegarle de nuevo al backend.
-8. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+7. Buscador de categorías/carpetas por texto, y vista tabla/grilla intercambiable — ver la lista de pendientes al inicio de este documento.
 
 ⚠️ **Ojo con esto:** en ese mockup, debajo del mapa y la grilla de carpetas hay una tercera sección ("Estructura documental / Taxonomía institucional") que repite la misma lista de carpetas con los mismos conteos, en formato de lista plana — es puramente redundante con la grilla de arriba, no aporta nada nuevo. **No la repliquen** si toman ideas de ese mockup.
 
@@ -117,7 +124,7 @@ POST /auth/logout
 
 → 204
 ```
-Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). El proxy/`api/auth/logout` del frontend debería llamar a este endpoint con el `refresh_token` guardado **antes** de borrar las cookies locales, no solo borrar cookies como hace hoy.
+Revoca el `refresh_token` en el servidor (ya no sirve para `/refresh`, aunque no haya expirado). Si además se manda `Authorization: Bearer <access>`, también invalida ese access de inmediato. El frontend ya llama a este endpoint desde `api/auth/logout` **antes** de borrar las cookies locales (18/09/2026).
 
 > ⚠️ **(nuevo, 14/09/2026) Ya no hace falta trabajar el trade-off de "el access_token sigue vivo tras el logout"**: si el request a `/auth/logout` incluye el header `Authorization: Bearer <access_token>` (el mismo que ya se manda en cualquier otro request autenticado), el backend además invalida ese access_token de inmediato — cualquier uso posterior responde `401`. Es **opcional**: si no se manda el header, el comportamiento es igual que antes (solo se revoca el refresh_token). Recomendación: que el logout del frontend mande el header, así el cierre de sesión es inmediato de verdad y no depende de esperar los ~15 minutos de vida del access_token.
 
@@ -174,9 +181,9 @@ DELETE /folders/{id}                                                    → 204
 - Mover una carpeta dentro de sí misma o de su propia subcarpeta responde `400`.
 - `admin`/`super_admin` pueden ver/editar carpetas de cualquier usuario pasando `?owner_id=<user_id>` en `GET /folders`, o accediendo directo a `GET /folders/{id}` de otro usuario.
 
-### Decisión (13/09/2026): una sola pestaña, se queda el estante
+### Decisión: una sola pestaña Archivo (`/ubicacion`)
 
-Las carpetas de arriba son un árbol **manual** y no reflejan dónde está guardado el documento. El archivo real ya está en estante/división/columna/tomo. Por eso el menú ya no tiene dos pestañas (Carpetas y Ubicación): quedó **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. El módulo `folders` del backend no se borró; al editar un documento todavía se puede asignar una carpeta.
+Las carpetas de arriba son un árbol **manual** y no reflejan dónde está guardado el documento. El archivo real ya está en estante/división/columna/tomo. Por eso el menú quedó con **Archivo** (`/ubicacion`) y `/carpetas` redirige ahí. El módulo `folders` del backend no se borró; al editar un documento todavía se puede asignar una carpeta. Implementación oficial: rama `frontend/unificar-archivo` (también incluye buscador de texto sobre el nivel actual).
 
 ```
 GET /documents/locations?physical_shelf=&physical_division=&physical_column=
@@ -207,14 +214,14 @@ multipart: file=<archivo>, title="...", doc_type? , folder_id?
 → 202 { document_id, task_id: null, status: "pending" }
 ```
 
-**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa) — **este es el flujo que falta construir en el frontend, ver "Pendiente — prioridad alta" arriba**:
+**B. Registrar primero, escanear/subir después** (ej. el staff arma la lista de documentos pendientes de digitalizar, y va subiendo cada escaneo conforme lo procesa) — **ya construido** en `/documentos` (botón "Subir escaneo" para documentos sin archivo):
 ```
 1) POST /documents          { title, description?, doc_type?, folder_id?, physical_shelf?, physical_division?, physical_column?, physical_volume?, archived_year?, archived_month_start?, archived_month_end? }   → 201, documento sin archivo
 2) POST /documents/{id}/upload   multipart: file=<archivo>                    → 202 { document_id, status }
 ```
 Intentar subir un segundo archivo al mismo documento responde `409` (un documento solo tiene un archivo original).
 
-Ahora mismo hay **289 documentos reales** ya en este estado (creados sin archivo, migrados desde el sistema anterior del archivo físico) — la UI necesita mostrar estos documentos `pending` y ofrecer el botón de "subir escaneo" (paso 2) para cada uno.
+Los **289 documentos reales** migrados desde el sistema anterior del archivo físico ya están en este estado (creados sin archivo) — el botón de "subir escaneo" del listado de `/documentos` ya cubre este caso.
 
 Los campos `physical_*` (`physical_shelf`, `physical_division`, `physical_column`, `physical_volume`, todos `string`) son opcionales y catalogan dónde está guardado físicamente el documento (estante/división/columna/tomo).
 
@@ -237,6 +244,8 @@ POST   /documents/{id}/restore                                          → 200,
 Estados posibles de `status`: `pending` → `processing` → `completed` (o `failed`). Sugerencia: después de subir, hacer polling a `/documents/{id}/status` cada 1-2 segundos hasta que sea `completed`, y ahí mostrar el botón de descarga / el texto extraído.
 
 > ⚙️ **(nuevo, 14/09/2026) Reintentos automáticos**: si el procesamiento falla por algo transitorio (ej. una caída momentánea de almacenamiento), el backend reintenta solo hasta 3 veces con backoff (30s/60s/120s) antes de marcar `failed`. Mientras tanto el documento se queda en `status: "processing"` — el polling que ya tenían sigue funcionando igual, solo puede tardar un poco más en algunos casos raros antes de llegar a `completed` o `failed`. No hace falta cambiar nada en el frontend por esto.
+>
+> ⏱️ **(nuevo, 16/09/2026) Procesamiento acotado en el tiempo**: antes, un archivo problemático podía dejar un documento colgado en `status: "processing"` indefinidamente (llegó a pasar por horas). Ahora el worker corta la tarea sola a los 10-11 minutos y, si por algún motivo queda "huérfana" igual, una revisión automática cada 5 minutos la vuelve a encolar. En la práctica, un documento nunca debería quedarse en `processing` por más de ~20-25 minutos — si el frontend quiere mostrar algún aviso tipo "esto está tardando más de lo normal", ese es el umbral de referencia.
 >
 > 📋 **(nuevo, 14/09/2026) Motivo del fallo visible**: `GET /documents/{id}/status` y el detalle del documento (`GET /documents/{id}`) ahora traen `error_message` (string o `null`). Antes, cuando un documento quedaba en `failed`, no había forma de saber por qué desde el frontend — ahora se puede mostrar el motivo (ej. "El documento no tiene un archivo original asociado") en vez de un genérico "algo salió mal".
 >
@@ -265,7 +274,7 @@ GET /search?q=...&doc_type=&folder_id=&date_from=&date_to=&page=&per_page=
 Nota para correr esto localmente: además de `docker compose up -d`, ahora también hay que levantar `docker compose up -d worker-ocr-pdf` (el procesador de OCR/PDF) para que los documentos pasen de `pending` a `completed`. Sin el worker corriendo, los documentos subidos se quedan en `pending` indefinidamente.
 
 Pendientes conocidos del backend (no bloquean el desarrollo del frontend):
-- `POST /auth/logout` ya existe (revoca el refresh token) — falta que el frontend lo llame antes de borrar las cookies, y de paso mande el header `Authorization` para que también invalide el access_token (ver sección 1).
+- `POST /auth/logout` revoca el refresh token y, si se manda el header `Authorization`, también el access token — el frontend ya lo llama desde `api/auth/logout` (18/09/2026).
 - Rate limiting: ya cubre login (5/15min), `/auth/refresh` (30/15min por IP), subidas de documentos y reprocesar (20/hora por usuario cada uno), creación/edición de usuarios (30/hora), creación de folders (30/hora) y búsqueda (60 cada 5 min por usuario). **(actualizado 14/09/2026)** — antes solo cubría login/refresh/uploads.
 
 ## 6. Errores comunes a manejar en el frontend

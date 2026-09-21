@@ -1,8 +1,9 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
+from celery.exceptions import SoftTimeLimitExceeded
 from sqlalchemy import select
 
 from app.auth import models as auth_models  # noqa: F401
@@ -12,13 +13,17 @@ from app.documents.models import Document, ExtractedText, GeneratedPdf, Original
 from app.folders import models as folders_models  # noqa: F401
 from app.processing.pipeline import process_image_bytes
 from app.storage.minio_client import download_bytes, upload_bytes
-from app.worker.celery_app import celery_app
+from app.worker.celery_app import TASK_SOFT_TIME_LIMIT_SECONDS, celery_app
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
 PROCESS_DOCUMENT_MAX_RETRIES = 3
 PROCESS_DOCUMENT_RETRY_BACKOFF_SECONDS = 30
+
+# Debe ser bastante mayor que TASK_SOFT_TIME_LIMIT_SECONDS + los reintentos internos de
+# process_document, para no reencolar una tarea que en realidad sigue viva y trabajando.
+STUCK_PROCESSING_THRESHOLD_MINUTES = 20
 
 
 class MissingOriginalImageError(RuntimeError):
@@ -143,7 +148,15 @@ def process_document(self, document_id: str) -> None:
     except MissingOriginalImageError as exc:
         asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id), str(exc)))
         raise
-    except Exception as exc:
+    except (Exception, SoftTimeLimitExceeded) as exc:
+        # SoftTimeLimitExceeded hereda de SystemExit, no de Exception, precisamente para
+        # que no quede atrapada por accidente en un "except Exception" generico. Aca la
+        # queremos tratar igual que cualquier otra falla: reintentar y, si se agotan los
+        # reintentos, marcar el documento como failed en vez de dejarlo colgado.
+        if isinstance(exc, SoftTimeLimitExceeded):
+            exc = TimeoutError(
+                f"El procesamiento supero el limite de {TASK_SOFT_TIME_LIMIT_SECONDS // 60} minutos"
+            )
         if _should_give_up(self.request.retries, self.max_retries):
             logger.error("document=%s agoto los reintentos, marcando como failed", document_id)
             asyncio.run(_mark_document_failed_and_dispose(uuid.UUID(document_id), str(exc)))
@@ -157,3 +170,29 @@ def process_document(self, document_id: str) -> None:
             countdown,
         )
         raise self.retry(exc=exc, countdown=countdown)
+
+
+async def _find_stuck_document_ids(threshold_minutes: int) -> list[uuid.UUID]:
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+    async with SessionLocal() as db:
+        result = await db.execute(
+            select(Document.id).where(
+                Document.status == "processing",
+                Document.updated_at < cutoff,
+                Document.deleted_at.is_(None),
+            )
+        )
+        return [row[0] for row in result.all()]
+
+
+@celery_app.task(name="app.worker.tasks.requeue_stuck_documents")
+def requeue_stuck_documents() -> int:
+    """Tarea periodica (Celery Beat): busca documentos que quedaron en 'processing' sin
+    ningun avance por mas de STUCK_PROCESSING_THRESHOLD_MINUTES -- senal de que el worker
+    se colgo o murio a mitad de la tarea sin que nada lo detectara -- y los vuelve a
+    encolar. process_document ya es idempotente ante una re-ejecucion."""
+    stuck_ids = asyncio.run(_find_stuck_document_ids(STUCK_PROCESSING_THRESHOLD_MINUTES))
+    for document_id in stuck_ids:
+        logger.warning("document=%s colgado en processing, reencolando", document_id)
+        process_document.delay(str(document_id))
+    return len(stuck_ids)

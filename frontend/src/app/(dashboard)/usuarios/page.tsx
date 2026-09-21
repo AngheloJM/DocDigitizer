@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { UserCreateModal } from "@/components/users/UserCreateModal";
+import { UserPasswordModal } from "@/components/users/UserPasswordModal";
 import { UserRoleModal } from "@/components/users/UserRoleModal";
 import { Icon } from "@/components/ui/Icon";
 import { ApiError } from "@/lib/api";
@@ -13,10 +14,13 @@ export default function UsuariosPage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [roleTarget, setRoleTarget] = useState<User | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -38,6 +42,7 @@ export default function UsuariosPage() {
   async function toggleActive(target: User) {
     setUpdatingUserId(target.id);
     setError(null);
+    setNotice(null);
     try {
       const updated = await backend.auth.updateUser(target.id, {
         is_active: !target.is_active,
@@ -49,6 +54,29 @@ export default function UsuariosPage() {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar el usuario");
     } finally {
       setUpdatingUserId(null);
+    }
+  }
+
+  async function revokeSessions(target: User) {
+    const ok = window.confirm(
+      `¿Cerrar todas las sesiones de ${target.full_name}? Tendrá que volver a iniciar sesión.`,
+    );
+    if (!ok) return;
+
+    setRevokingUserId(target.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await backend.auth.revokeSessions(target.id);
+      setNotice(`Se cerraron las sesiones de ${target.full_name}.`);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron cerrar las sesiones del usuario",
+      );
+    } finally {
+      setRevokingUserId(null);
     }
   }
 
@@ -88,6 +116,11 @@ export default function UsuariosPage() {
       </div>
 
       {error && <div className="bg-error-container text-error text-sm rounded-2xl px-3 py-2 mb-4">{error}</div>}
+      {notice && (
+        <div className="mb-4 rounded-2xl border border-outline-variant bg-white px-3 py-2 text-sm text-on-surface">
+          {notice}
+        </div>
+      )}
 
       <div className="min-w-0 max-w-full bg-white rounded-2xl border border-outline-variant">
         {loading ? (
@@ -126,14 +159,32 @@ export default function UsuariosPage() {
                     <td className="py-3 px-4 text-right">
                       <div className="inline-flex flex-wrap items-center justify-end gap-2 [&_button]:max-xl:min-h-11">
                         {user?.role === "super_admin" && (
-                          <button
-                            type="button"
-                            onClick={() => setRoleTarget(item)}
-                            className="rounded-2xl border border-outline-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container"
-                          >
-                            Cambiar rol
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setRoleTarget(item)}
+                              className="rounded-2xl border border-outline-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container"
+                            >
+                              Cambiar rol
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPasswordTarget(item)}
+                              className="rounded-2xl border border-outline-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container"
+                            >
+                              Resetear clave
+                            </button>
+                          </>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={() => void revokeSessions(item)}
+                          disabled={revokingUserId === item.id}
+                          className="rounded-2xl border border-outline-variant px-3 py-1.5 text-xs font-medium transition-colors hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {revokingUserId === item.id ? "Cerrando..." : "Cerrar sesiones"}
+                        </button>
 
                         <button
                           type="button"
@@ -178,6 +229,20 @@ export default function UsuariosPage() {
             current.map((item) => (item.id === updated.id ? updated : item)),
           );
           setRoleTarget(null);
+        }}
+      />
+
+      <UserPasswordModal
+        open={passwordTarget !== null}
+        target={passwordTarget}
+        onClose={() => setPasswordTarget(null)}
+        onSaved={() => {
+          setNotice(
+            passwordTarget
+              ? `Contraseña actualizada para ${passwordTarget.full_name}. Sus sesiones quedaron cerradas.`
+              : "Contraseña actualizada.",
+          );
+          setPasswordTarget(null);
         }}
       />
     </>

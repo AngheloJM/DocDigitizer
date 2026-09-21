@@ -414,10 +414,10 @@ function DocumentosContent() {
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <p className="max-w-xs break-words font-medium text-on-surface">{doc.title}</p>
+                        <p className="max-w-xs wrap-break-words font-medium text-on-surface">{doc.title}</p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
                           {doc.doc_type && (
-                            <span className="max-w-xs break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
+                            <span className="max-w-xs wrap-break-words text-xs text-on-surface-variant">{doc.doc_type}</span>
                           )}
                           {assignedToMe && (
                             <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-on-secondary">
@@ -434,13 +434,14 @@ function DocumentosContent() {
                       <td className="py-3 px-4 text-on-surface-variant whitespace-nowrap">
                         {formatArchivedPeriod(doc)}
                       </td>
-                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] break-words">
+                      <td className="py-3 px-4 text-on-surface-variant text-xs max-w-[220px] wrap-break-words">
                         {formatPhysicalLocation(doc)}
                       </td>
                       <td className="py-3 px-4">
                         {staff ? (
                           <select
                             value={doc.assigned_to_id ?? ""}
+                            aria-label={`Asignar documento: ${doc.title}`}
                             disabled={assigningId === doc.id}
                             onChange={(event) => {
                               if (event.target.value) void onAssign(doc.id, event.target.value);
@@ -469,7 +470,7 @@ function DocumentosContent() {
                         <StatusBadge status={doc.status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_a]:items-center [&_a]:justify-center">
+                        <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
                           {canEditDocument(doc) && (
                             <button
                               type="button"

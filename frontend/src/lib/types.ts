@@ -171,6 +171,7 @@ export type UserCreateInput = {
 export type UserUpdateInput = {
   role?: ManageableRole;
   is_active?: boolean;
+  password?: string;
 };
 
 export type DocumentUpdateInput = {

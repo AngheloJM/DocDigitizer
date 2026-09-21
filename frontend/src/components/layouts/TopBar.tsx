@@ -8,10 +8,11 @@ import { useUi } from "@/components/providers/UiProvider";
 import { initials, ROLE_LABEL } from "@/lib/types";
 
 export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, logoutAll, loading } = useAuth();
   const { sidebarCollapsed, toggleSidebar } = useUi();
   const [query, setQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [sessionBusy, setSessionBusy] = useState(false);
   const router = useRouter();
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -32,20 +33,47 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
     router.push(`/busqueda?q=${encodeURIComponent(value)}`);
   }
 
+  async function onLogout() {
+    if (sessionBusy) return;
+    setSessionBusy(true);
+    setShowUserMenu(false);
+    try {
+      await logout();
+    } finally {
+      setSessionBusy(false);
+    }
+  }
+
+  async function onLogoutAll() {
+    if (sessionBusy) return;
+    const ok = window.confirm(
+      "¿Cerrar sesión en todos los dispositivos? Tendrás que volver a iniciar sesión en todos lados.",
+    );
+    if (!ok) return;
+    setSessionBusy(true);
+    setShowUserMenu(false);
+    try {
+      await logoutAll();
+    } finally {
+      setSessionBusy(false);
+    }
+  }
+
   return (
-    <header className="flex min-w-0 justify-between items-center w-full px-4 md:px-6 lg:px-8 h-14 sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-outline-variant">
+    <header className="flex min-w-0 justify-between items-center w-full px-4 md:px-6 xl:px-8 h-14 sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-outline-variant">
       <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
-          className="md:hidden inline-flex h-11 w-11 shrink-0 items-center justify-center text-on-surface-variant rounded-2xl hover:bg-surface-container transition-colors"
-          aria-label="Abrir menú"
+          className="inline-flex h-11 w-11 items-center justify-center md:hidden text-on-surface-variant p-1.5 rounded-2xl hover:bg-surface-container transition-colors"
+          aria-label="Abrir menú de navegación"
           onClick={onMenuToggle}
         >
           <Icon name="menu" className="text-xl" />
         </button>
         <button
           type="button"
-          className="hidden md:flex items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          className="hidden md:flex h-11 w-11 xl:h-auto xl:w-auto items-center justify-center p-1.5 rounded-2xl text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
+          aria-label={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
@@ -57,13 +85,13 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
         </span>
       </div>
 
-      <form className="min-w-0 flex-1 max-w-lg mx-2 md:mx-3 lg:mx-6 relative" onSubmit={onSearch}>
+      <form className="relative mx-2 min-w-0 flex-1 max-w-lg md:mx-4" onSubmit={onSearch} role="search">
         <div className="relative flex min-w-0 items-center w-full h-11 xl:h-9 rounded-2xl bg-surface-container border border-transparent hover:bg-surface-container-high focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
           <div className="grid shrink-0 place-items-center h-full w-10 text-on-surface-variant">
             <Icon name="search" className="text-lg" />
           </div>
           <input
-            className="peer min-w-0 flex-1 h-full w-full outline-none text-base xl:text-sm text-on-surface bg-transparent pr-3 border-none focus:ring-0 placeholder:text-on-surface-variant/60"
+            className="h-full min-w-0 flex-1 border-none bg-transparent pr-3 text-base text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-0 xl:text-sm"
             placeholder="Buscar documentos..."
             aria-label="Buscar documentos"
             type="text"
@@ -81,6 +109,7 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
             className="flex items-center gap-2.5 cursor-pointer hover:bg-surface-container transition-colors p-1 pr-2.5 rounded-2xl"
             aria-expanded={showUserMenu}
             aria-haspopup="menu"
+            aria-label="Abrir menú de usuario"
           >
             <div className="w-9 h-9 shrink-0 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-xs shadow-sm ring-2 ring-secondary/40">
               {user ? initials(user.full_name) : loading ? "…" : "—"}
@@ -119,8 +148,19 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={() => void logout()}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-error hover:bg-error-container transition-colors"
+                  disabled={sessionBusy}
+                  onClick={() => void onLogoutAll()}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors disabled:opacity-60"
+                >
+                  <Icon name="devices" className="text-lg" />
+                  Cerrar todas las sesiones
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={sessionBusy}
+                  onClick={() => void onLogout()}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-error hover:bg-error-container transition-colors disabled:opacity-60"
                 >
                   <Icon name="logout" className="text-lg" />
                   Cerrar sesión

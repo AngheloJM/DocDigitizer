@@ -19,6 +19,20 @@ logger = logging.getLogger(__name__)
 
 MAX_DIMENSION_PX = 3000
 PDF_RENDER_DPI = 300
+PDF_RENDER_DPI_FLOOR = 150
+
+# Saturacion HSV promedio (0-255) por encima de la cual asumimos que la imagen es
+# una captura digital nitida (screenshot, diseno, export) y no una foto de un papel
+# real. Un documento fisico escaneado es mayormente blanco/negro con acentos de
+# color puntuales (un sello, una firma), lo que da un promedio bajo; una imagen con
+# bloques grandes de color solido (como este ejemplo) da un promedio mucho mas alto.
+BORN_DIGITAL_SATURATION_THRESHOLD = 30
+
+
+def _looks_born_digital(image: np.ndarray) -> bool:
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    mean_saturation = float(hsv[:, :, 1].mean())
+    return mean_saturation > BORN_DIGITAL_SATURATION_THRESHOLD
 
 
 def _resize_if_needed(pil_image: Image.Image) -> Image.Image:
@@ -35,24 +49,40 @@ def _pil_to_cv2(pil_image: Image.Image) -> np.ndarray:
     return cv2.cvtColor(np.array(resized), cv2.COLOR_RGB2BGR)
 
 
-def _iter_pdf_pages(pdf_bytes: bytes) -> Iterator[np.ndarray]:
+def _dpi_for_pdf_page(page: "pymupdf.Page") -> int:
+    """Elige la DPI de renderizado en base al tamano fisico de la pagina, para que el
+    resultado apunte directo a MAX_DIMENSION_PX en una sola pasada. Sin esto, una
+    pagina "nacida digital" (ej. un diseno exportado a un tamano de pagina grande
+    asumiendo baja resolucion) se renderiza agrandada de mas a una DPI fija y despues
+    se vuelve a achicar para entrar en el limite -- dos remuestreos en cadena que
+    difuminan el resultado en vez de uno solo."""
+    longest_side_pt = max(page.rect.width, page.rect.height)
+    if longest_side_pt <= 0:
+        return PDF_RENDER_DPI
+    longest_side_in = longest_side_pt / 72
+    target_dpi = MAX_DIMENSION_PX / longest_side_in
+    return int(max(PDF_RENDER_DPI_FLOOR, min(PDF_RENDER_DPI, target_dpi)))
+
+
+def _iter_pdf_pages(pdf_bytes: bytes) -> Iterator[tuple[np.ndarray, int]]:
     with pymupdf.open(stream=pdf_bytes, filetype="pdf") as pdf:
         for page in pdf:
-            pixmap = page.get_pixmap(dpi=PDF_RENDER_DPI)
+            dpi = _dpi_for_pdf_page(page)
+            pixmap = page.get_pixmap(dpi=dpi)
             mode = "RGBA" if pixmap.alpha else "RGB"
             pil_image = Image.frombytes(mode, (pixmap.width, pixmap.height), pixmap.samples)
-            yield _pil_to_cv2(pil_image)
+            yield _pil_to_cv2(pil_image), dpi
             del pixmap, pil_image
 
 
-def _iter_pages(file_bytes: bytes, file_format: str) -> Iterator[np.ndarray]:
+def _iter_pages(file_bytes: bytes, file_format: str) -> Iterator[tuple[np.ndarray, int]]:
     if file_format == "pdf":
         yield from _iter_pdf_pages(file_bytes)
         return
 
     with Image.open(io.BytesIO(file_bytes)) as opened:
         pil_image = ImageOps.exif_transpose(opened)
-        yield _pil_to_cv2(pil_image)
+        yield _pil_to_cv2(pil_image), PDF_RENDER_DPI
 
 
 def _count_pages(file_bytes: bytes, file_format: str) -> int:
@@ -72,6 +102,7 @@ def _step(name: str, fn, *args):
 def _process_page(
     image: np.ndarray,
     page_number: int,
+    dpi: int,
     perspective_config: dict,
     denoise_config: dict,
     binarize_config: dict,
@@ -85,7 +116,7 @@ def _process_page(
     image, deskew_meta = _step(f"deskew_p{page_number}", deskew, image, deskew_config)
 
     ocr_result = _step(f"ocr_p{page_number}", extract_text, image)
-    pdf_bytes = _step(f"pdf_generate_p{page_number}", generate_pdf_from_image, image)
+    pdf_bytes = _step(f"pdf_generate_p{page_number}", generate_pdf_from_image, image, dpi)
 
     return {
         "ocr_result": ocr_result,
@@ -101,20 +132,25 @@ def _process_page(
 
 def process_image_bytes(file_bytes: bytes, file_format: str = "png") -> dict:
     pages_in_source = _count_pages(file_bytes, file_format)
-    # los PDFs son renders digitales limpios, nunca fotografiados en angulo
-    # ni con ruido de sensor de camara -- estos pasos solo aplican a fotos reales
-    photo_only_config = {"enabled": file_format != "pdf"}
 
     page_results = []
-    for index, page_image in enumerate(_iter_pages(file_bytes, file_format)):
+    for index, (page_image, page_dpi) in enumerate(_iter_pages(file_bytes, file_format)):
+        # los PDFs son renders digitales limpios, nunca fotografiados en angulo ni
+        # con ruido de sensor de camara -- estos pasos solo aplican a fotos reales.
+        # Para el resto de formatos, una imagen puede igual ser "nacida digital"
+        # (un screenshot, un export) en vez de una foto de papel real -- aplicarle
+        # binarizacion/perspectiva a algo asi lo arruina en vez de mejorarlo.
+        is_photo = file_format != "pdf" and not _looks_born_digital(page_image)
+        page_config = {"enabled": is_photo}
         page_results.append(
             _process_page(
                 page_image,
                 index + 1,
-                photo_only_config,
-                photo_only_config,
-                photo_only_config,
-                photo_only_config,
+                page_dpi,
+                page_config,
+                page_config,
+                page_config,
+                page_config,
             )
         )
         del page_image
