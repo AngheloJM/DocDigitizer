@@ -59,9 +59,7 @@ Cómo probar: entrar con un usuario, confirmar que abre `/inicio`, que las tres 
 
 Un compañero de curso armó un mockup visual del mismo tipo de sistema (React + Vite, 100% datos simulados en memoria, sin backend real — carpeta `pruebas/` en este repo, no confundir con nuestro frontend real). No es código para copiar (es otro framework, otro modelo de datos, y no habla con nuestra API), pero tiene ideas de UX que valen la pena portar a nuestras pantallas reales:
 
-5. ~~Dashboard/inicio con resumen y "actividad reciente"~~ — **ya construido** como `/inicio` (13/09/2026): tarjetas de total, pendientes y completados, y los últimos documentos (`GET /documents` ordenado por `created_at desc`). El login redirige ahí.
-6. ~~Mapa visual de estantes~~ — **ya construido** como la pantalla `/ubicacion` (10/09/2026), navega estante → división → columna → tomo con `GET /documents/locations`.
-7. Buscador de categorías/carpetas por texto, y vista tabla/grilla intercambiable — ver la lista de pendientes al inicio de este documento.
+Ya se construyó todo lo que aplicaba de acá: el dashboard/inicio con resumen y actividad reciente (`/inicio`), el mapa visual de estantes (`/ubicacion`), el buscador de texto y la vista tabla/grilla intercambiable — ver "Resuelto recientemente" al inicio de este documento.
 
 ⚠️ **Ojo con esto:** en ese mockup, debajo del mapa y la grilla de carpetas hay una tercera sección ("Estructura documental / Taxonomía institucional") que repite la misma lista de carpetas con los mismos conteos, en formato de lista plana — es puramente redundante con la grilla de arriba, no aporta nada nuevo. **No la repliquen** si toman ideas de ese mockup.
 
