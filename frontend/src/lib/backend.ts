@@ -1,6 +1,7 @@
 import { api } from "@/lib/api";
 import type {
   DocumentItem,
+  DocumentDetail,
   DocumentUpdateInput,
   Folder,
   LocationNode,
@@ -102,6 +103,8 @@ export const backend = {
   },
 
   documents: {
+    detail: (id: string) => api<DocumentDetail>(`/documents/${id}`),
+
     list: (filters: DocumentListFilters = {}) => {
       const params = new URLSearchParams({
         page: String(filters.page ?? 1),
@@ -128,11 +131,13 @@ export const backend = {
       if (filters.archivedYear != null)
         params.set("archived_year", String(filters.archivedYear));
 
-      if(filters.archivedMonthFrom != null)
+      if (filters.archivedMonthFrom != null) {
         params.set("archived_month_from", String(filters.archivedMonthFrom));
+      }
 
-      if(filters.archivedMonthTo != null)
+      if (filters.archivedMonthTo != null) {
         params.set("archived_month_to", String(filters.archivedMonthTo));
+      }
 
       if (filters.assignedToId)
         params.set("assigned_to_id", filters.assignedToId);
@@ -193,6 +198,7 @@ export const backend = {
       api<{
         status: string;
         processed_at: string | null;
+        error_message: string | null;
       }>(`/documents/${id}/status`),
 
     reprocess: (id: string) =>

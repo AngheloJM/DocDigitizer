@@ -58,6 +58,7 @@ export type DocumentItem = {
   archived_month_end: number | null;
   created_at: string;
   processed_at: string | null;
+  error_message: string | null;
 };
 
 export type DocumentDetail = DocumentItem & {
@@ -157,8 +158,27 @@ export function formatArchivedPeriod(doc: {
   return String(doc.archived_year);
 }
 
-export function needsScanUpload(status: string) {
-  return status === "pending" || status === "failed";
+export function needsScanUpload(status: string, hasOriginal: boolean) {
+  return (status === "pending" || status === "failed") && !hasOriginal;
+}
+
+
+const FAILURE_REASONS = [
+  { match: "no tiene un archivo original", message: "El documento no tiene un archivo. Sube el escaneo para procesarlo." },
+  { match: "supero el limite", message: "El procesamiento tardó demasiado y se canceló." },
+  { match: "encrypted", message: "El PDF está protegido con contraseña." },
+  { match: "cannot open broken document", message: "El PDF está dañado y no se puede abrir." },
+  { match: "failed to open stream", message: "El PDF está dañado y no se puede abrir." },
+  { match: "cannot identify image file", message: "El archivo está dañado o no es una imagen válida." },
+];
+
+const GENERIC_FAILURE_REASON = "No se pudo procesar el documento por un error interno.";
+
+export function failureReason(errorMessage: string | null) {
+  if (!errorMessage) return GENERIC_FAILURE_REASON;
+  const text = errorMessage.toLowerCase();
+  const known = FAILURE_REASONS.find((reason) => text.includes(reason.match));
+  return known ? known.message : GENERIC_FAILURE_REASON;
 }
 
 export type UserCreateInput = {

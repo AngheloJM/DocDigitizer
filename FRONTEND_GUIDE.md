@@ -28,12 +28,13 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 **⏳ Pendiente — prioridad media:**
 
 4. **Ajustar el botón de reprocesar** (agregado 11/09/2026 por Daniel) — hoy solo aparece para documentos `"completed"`, pero el backend permite reprocesar **cualquier documento que ya tenga un archivo original**, sin importar su estado. El caso más útil es justo un documento `"failed"` (por ejemplo, tras una caída del worker) — hoy esos documentos muestran el botón de "subir escaneo" en vez de "reprocesar", y si alguien lo usa, el backend responde `409` porque el documento ya tiene un archivo. Cambiar la condición del botón (`documentos/page.tsx`) para que también aparezca cuando `status === "failed"`.
-5. **Mostrar el motivo del fallo** (`error_message`, ver sección 3) cuando un documento queda en `"failed"` — hoy el backend lo expone pero no se muestra en ningún lado.
+5. ~~Mostrar el motivo del fallo~~ — **ya construido**: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`). El `error_message` del backend se traduce con `failureReason()` en `lib/types.ts`: los fallos que el usuario puede entender (archivo dañado, PDF con contraseña, sin archivo, tiempo agotado) se muestran con un mensaje claro, y cualquier otro error interno (base de datos, almacenamiento, etc.) se muestra como un mensaje general, sin detalles técnicos.
 6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
 7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
 8. ~~Decidir el destino de `/carpetas`~~ — **decidido**: se queda una sola pestaña **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. Implementación oficial: rama `frontend/unificar-archivo` (incluye también el buscador del punto 9). Las otras ramas que tocaban lo mismo (`fix/filtro_meses`, `fix/modal_subirDoc`, PR #72) no deben rehacer esta unificación; si traen otras features, que salgan en PRs aparte.
 9. ~~Buscador de texto dentro de `/carpetas`~~ — **ya construido** en `/ubicacion` (filtra estantes/divisiones/columnas/tomos ya cargados, sin nueva petición al backend).
-10. **Vista tabla/grilla intercambiable** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+10. ~~Vista tabla/grilla intercambiable~~ --**ya construido** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
+11. ~~Modal compartido para subir y editar documentos~~ — **implementado:** se conectó el botón **Subir documento** al modal de edición existente (`DocumentEditModal`), reutilizándolo y unificando las acciones de añadir y editar documentos en un mismo componente, manteniendo el diseño original.
 
 Ninguno de estos bloquea el uso básico del sistema.
 

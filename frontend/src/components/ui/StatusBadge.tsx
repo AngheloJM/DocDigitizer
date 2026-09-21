@@ -2,10 +2,10 @@ import { STATUS_LABEL } from "@/lib/types";
 
 const colorMap: Record<string, string> = {
   pending: "bg-secondary",
-  processing: "bg-primary",
+  processing: "bg-info animate-pulse",
   completed: "bg-success",
   failed: "bg-error",
-  reprocessing: "bg-secondary",
+  reprocessing: "bg-info animate-pulse",
 };
 
 export function StatusBadge({ status }: { status: string }) {

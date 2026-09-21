@@ -1,14 +1,15 @@
+"use client";
 
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { MonthOptions } from "@/components/ui/MonthOption";
+
 import { FormActions } from "@/components/ui/FormActions";
 import { FormField, formControlClass } from "@/components/ui/FormField";
 import { FormSection } from "@/components/ui/FormSection";
 import { Modal } from "@/components/ui/Modal";
+import { MonthOptions } from "@/components/ui/MonthOptions";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
@@ -68,25 +69,26 @@ type DocumentFormValues = z.infer<typeof documentSchema>;
 type DocumentEditModalProps = {
   open: boolean;
   document: DocumentItem | null;
+  ownerId: string;
   onClose: () => void;
   onSaved: (document: DocumentItem) => void;
 };
 
-function getDefaultValues(document: DocumentItem): DocumentFormValues {
+function getDefaultValues(document: DocumentItem | null): DocumentFormValues {
   return {
-    title: document.title,
-    description: document.description ?? "",
-    doc_type: document.doc_type ?? "",
-    folder_id: document.folder_id ?? "",
-    physical_shelf: document.physical_shelf ?? "",
-    physical_division: document.physical_division ?? "",
-    physical_column: document.physical_column ?? "",
-    physical_volume: document.physical_volume ?? "",
-    archived_year: document.archived_year ? String(document.archived_year) : "",
-    archived_month_start: document.archived_month_start
+    title: document?.title ?? "",
+    description: document?.description ?? "",
+    doc_type: document?.doc_type ?? "",
+    folder_id: document?.folder_id ?? "",
+    physical_shelf: document?.physical_shelf ?? "",
+    physical_division: document?.physical_division ?? "",
+    physical_column: document?.physical_column ?? "",
+    physical_volume: document?.physical_volume ?? "",
+    archived_year: document?.archived_year != null ? String(document.archived_year) : "",
+    archived_month_start: document?.archived_month_start != null
       ? String(document.archived_month_start)
       : "",
-    archived_month_end: document.archived_month_end
+    archived_month_end: document?.archived_month_end != null
       ? String(document.archived_month_end)
       : "",
   };
@@ -95,12 +97,23 @@ function getDefaultValues(document: DocumentItem): DocumentFormValues {
 export function DocumentEditModal({
   open,
   document,
+  ownerId,
   onClose,
   onSaved,
 }: DocumentEditModalProps) {
+  const isCreating = document === null;
+  const folderOwnerId = document?.user_id ?? ownerId;
+
   const [folders, setFolders] = useState<FolderOption[]>([]);
-  const [folderLoading, setFolderLoading] = useState(false);
+  const [folderLoading, setFolderLoading] = useState(true);
+  const [folderError, setFolderError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null);
+  const submittingRef = useRef(false);
 
   const {
     register,
@@ -109,24 +122,29 @@ export function DocumentEditModal({
     formState: { errors, isSubmitting, isDirty },
   } = useForm<DocumentFormValues>({
     resolver: zodResolver(documentSchema),
+    defaultValues: getDefaultValues(document),
   });
 
   useEffect(() => {
-    if (!open || !document) return;
+    if (!open) return;
 
     let cancelled = false;
     reset(getDefaultValues(document));
     setServerError(null);
+    setFolderError(null);
+    setFile(null);
+    setFileError(null);
+    setUploadedDocumentId(null);
     setFolders([]);
     setFolderLoading(true);
 
-    loadFolderTree(document.user_id)
+    loadFolderTree(folderOwnerId)
       .then((options) => {
         if (!cancelled) setFolders(options);
       })
       .catch(() => {
         if (!cancelled) {
-          setServerError("No se pudieron cargar las carpetas disponibles.");
+          setFolderError("No se pudieron cargar las carpetas. Cierra y vuelve a abrir el formulario.");
         }
       })
       .finally(() => {
@@ -136,19 +154,50 @@ export function DocumentEditModal({
     return () => {
       cancelled = true;
     };
-  }, [open, document, reset]);
+  }, [open, document, folderOwnerId, reset]);
 
-  if (!document) return null;
 
   function requestClose() {
-    if (isSubmitting) return;
-    if (isDirty && !window.confirm("Hay cambios sin guardar. ¿Deseas cerrar?")) return;
+    if (isSubmitting || submittingRef.current) return;
+
+    const message = uploadedDocumentId
+      ? "El archivo ya se subió, pero falta completar sus datos. " +
+        "Si cierras, el documento permanecerá en el listado. ¿Deseas cerrar?"
+      : isDirty || file
+        ? "Hay cambios sin guardar. ¿Deseas cerrar?"
+        : null;
+
+    if (message && !window.confirm(message)) return;
     onClose();
   }
 
   async function onSubmit(values: DocumentFormValues) {
-    if (!document) return;
+    if (submittingRef.current || folderLoading || folderError) return;
     setServerError(null);
+    setFileError(null);
+
+    if (isCreating && !uploadedDocumentId) {
+      if (!file) {
+        setFileError("Selecciona un archivo.");
+        return;
+      }
+
+      if (!/\.(png|jpe?g|tiff?|bmp|pdf)$/i.test(file.name)) {
+        setFileError("Selecciona un archivo PNG, JPG, TIFF, BMP o PDF.");
+        return;
+      }
+
+      if (file.size === 0) {
+        setFileError("El archivo está vacío.");
+        return;
+      }
+
+      if (file.size > 20 * 1024 * 1024) {
+        setFileError("El archivo no puede superar 20 MiB.");
+        return;
+      }
+
+    }
 
     const payload: DocumentUpdateInput = {
       title: values.title.trim(),
@@ -168,33 +217,89 @@ export function DocumentEditModal({
         : null,
     };
 
+    let targetId = document?.id ?? uploadedDocumentId;
+    let savedDocument: DocumentItem;
+    submittingRef.current = true;
+
     try {
-      const updated = await backend.documents.update(document.id, payload);
-      onSaved(updated);
+
+      if (!targetId) {
+        if (!file) return;
+
+        const form = new FormData();
+        form.append("file", file);
+        form.append("title", values.title.trim());
+
+        const uploaded = await backend.documents.upload(form);
+
+        targetId = uploaded.document_id;
+        // Un reintento completará los metadatos sin volver a subir el archivo.
+        setUploadedDocumentId(targetId);
+      }
+      savedDocument = await backend.documents.update(targetId, payload);
     } catch (error) {
+      const message = error instanceof ApiError
+        ? error.message
+        : "No se pudo guardar el documento.";
+
       setServerError(
-        error instanceof ApiError ? error.message : "No se pudo actualizar el documento",
+        isCreating && targetId
+          ? "El archivo ya se subió. No se pudieron guardar todos los datos: " +
+            message + " Vuelve a guardar para completar este mismo documento."
+          : message,
       );
+      return;
+    } finally {
+      submittingRef.current = false;
     }
+    onSaved(savedDocument);
   }
 
   return (
     <Modal
       open={open}
-      title="Editar documento"
-      description={document.title}
+      title={isCreating ? "Subir documento" : "Editar documento"}
+      description={isCreating ? "Selecciona el archivo y completa sus datos." : document?.title}
       onClose={requestClose}
       maxWidth="max-w-4xl"
     >
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="space-y-6 p-4 sm:p-6">
-          {serverError && (
-            <div
-              role="alert"
-              className="rounded-2xl bg-error-container px-4 py-3 text-sm text-error"
-            >
-              {serverError}
+        <fieldset disabled={isSubmitting} className="min-w-0 space-y-6 border-0 p-4 sm:p-6">
+          {(folderError || serverError) && (
+            <div role="alert" className="rounded-2xl bg-error-container px-4 py-3 text-sm text-error">
+              {folderError || serverError}
             </div>
+          )}
+          {isCreating && (
+            <FormSection title="Archivo">
+              {uploadedDocumentId ? (
+                <p role="status" className="text-sm text-on-surface-variant">
+                  El archivo ya está subido. Al guardar se completarán los datos
+                  de este mismo documento.
+                </p>
+              ) : (
+                <FormField
+                  id="document-file"
+                  label="Archivo"
+                  required
+                  error={fileError ?? undefined}
+                  hint="PNG, JPG, JPEG, TIF, TIFF, BMP o PDF. Máximo 20 MiB."
+                >
+                  <input
+                    id="document-file"
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.tif,.tiff,.bmp,.pdf"
+                    required
+                    onChange={(event) => {
+                      setFile(event.target.files?.[0] ?? null);
+                      setFileError(null);
+                    }}
+                    className={formControlClass}
+                    aria-invalid={Boolean(fileError)}
+                  />
+                </FormField>
+              )}
+            </FormSection>
           )}
 
           <FormSection title="Información documental">
@@ -239,14 +344,16 @@ export function DocumentEditModal({
                   disabled={folderLoading}
                   className={formControlClass}
                 >
-                  <option value="" disabled={Boolean(document.folder_id)}>
-                    {document.folder_id ? "Selecciona una carpeta" : "Sin carpeta"}
-                  </option>
+                  <option value="">Sin carpeta</option>
                   {folders.map((folder) => (
                     <option key={folder.id} value={folder.id}>
                       {folder.label}
                     </option>
                   ))}
+                  {document?.folder_id && !folders.some((folder) => folder.id === document.folder_id) && 
+                  (
+                    <option value={document.folder_id}>Carpeta actual</option>
+                  )}
                 </select>
               </FormField>
 
@@ -271,16 +378,16 @@ export function DocumentEditModal({
             separated
           >
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <FormField id="physical-shelf" label="Estante">
+              <FormField id="physical-shelf" label="Estante" error={errors.physical_shelf?.message}>
                 <input id="physical-shelf" {...register("physical_shelf")} placeholder="Ej: E-03" className={formControlClass} />
               </FormField>
-              <FormField id="physical-division" label="División">
+              <FormField id="physical-division" label="División" error={errors.physical_division?.message}>
                 <input id="physical-division" {...register("physical_division")} placeholder="Ej: B-02" className={formControlClass} />
               </FormField>
-              <FormField id="physical-column" label="Columna">
+              <FormField id="physical-column" label="Columna" error={errors.physical_column?.message}>
                 <input id="physical-column" {...register("physical_column")} placeholder="Ej: C-01" className={formControlClass} />
               </FormField>
-              <FormField id="physical-volume" label="Tomo">
+              <FormField id="physical-volume" label="Tomo" error={errors.physical_volume?.message}>
                 <input id="physical-volume" {...register("physical_volume")} placeholder="Ej: T-01" className={formControlClass} />
               </FormField>
             </div>
@@ -295,13 +402,13 @@ export function DocumentEditModal({
               <FormField
                 id="archived-year"
                 label="Año"
-                required={document.archived_year !== null}
+                
                 error={errors.archived_year?.message}
               >
                 <input
                   id="archived-year"
                   {...register("archived_year")}
-                  required={document.archived_year !== null}
+                  
                   inputMode="numeric"
                   placeholder="2026"
                   className={formControlClass}
@@ -310,7 +417,7 @@ export function DocumentEditModal({
               </FormField>
               <FormField id="archived-month-start" label="Mes inicial">
                 <select id="archived-month-start" {...register("archived_month_start")} className={formControlClass}>
-                  <MonthOptions allowEmpty={document.archived_month_start === null} />
+                  <MonthOptions allowEmpty />
                 </select>
               </FormField>
               <FormField id="archived-month-end" label="Mes final" error={errors.archived_month_end?.message}>
@@ -320,14 +427,19 @@ export function DocumentEditModal({
                   className={formControlClass}
                   aria-invalid={Boolean(errors.archived_month_end)}
                 >
-                  <MonthOptions allowEmpty={document.archived_month_end === null} />
+                  <MonthOptions allowEmpty />
                 </select>
               </FormField>
             </div>
           </FormSection>
-        </div>
-
-        <FormActions submitLabel="Guardar cambios" isSubmitting={isSubmitting} submitDisabled={!isDirty} onCancel={requestClose} />
+        </fieldset>
+        <FormActions
+          submitLabel={uploadedDocumentId ? "Completar datos" : isCreating ? "Subir documento" : "Guardar cambios"}
+          submittingLabel={isCreating ? "Guardando documento..." : "Guardando cambios..."}
+          isSubmitting={isSubmitting}
+          submitDisabled={folderLoading || Boolean(folderError) || (!isCreating && !isDirty)}
+          onCancel={requestClose}
+        />
       </form>
     </Modal>
   );

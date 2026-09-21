@@ -108,7 +108,7 @@ export default function UsuariosPage() {
           type="button"
           onClick={() => setCreateOpen(true)}
           disabled={!user}
-          className="flex w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+          className="flex w-full shrink-0 min-h-11 items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
         >
           <Icon name="person_add" className="text-lg" />
           Nuevo usuario

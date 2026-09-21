@@ -14,6 +14,7 @@ import {
   SearchFiltersPanel,
   type SearchFilterValues,
 } from "@/components/search/SearchFiltersPanel";
+import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
 import { Pagina } from "@/components/ui/paginacion";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -364,6 +365,7 @@ function BusquedaContent() {
                     <p className="mt-0.5 text-xs text-on-surface-variant">
                       {formatPhysicalLocation(item.document)}
                     </p>
+                    <FailureReason status={item.document.status} errorMessage={item.document.error_message} />
                   </div>
                   <StatusBadge status={item.document.status} />
                 </div>

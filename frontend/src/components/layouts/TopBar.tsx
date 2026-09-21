@@ -86,12 +86,12 @@ export function TopBar({ onMenuToggle }: { onMenuToggle: () => void }) {
       </div>
 
       <form className="relative mx-2 min-w-0 flex-1 max-w-lg md:mx-4" onSubmit={onSearch} role="search">
-        <div className="relative flex items-center w-full h-9 rounded-2xl bg-surface-container border border-transparent hover:bg-surface-container-high focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
+        <div className="relative flex min-w-0 items-center w-full h-11 xl:h-9 rounded-2xl bg-surface-container border border-transparent hover:bg-surface-container-high focus-within:border-primary focus-within:ring-1 focus-within:ring-primary focus-within:bg-white transition-all">
           <div className="grid shrink-0 place-items-center h-full w-10 text-on-surface-variant">
             <Icon name="search" className="text-lg" />
           </div>
           <input
-            className="h-full min-w-0 flex-1 border-none bg-transparent pr-3 text-base text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-0 md:text-sm"
+            className="h-full min-w-0 flex-1 border-none bg-transparent pr-3 text-base text-on-surface outline-none placeholder:text-on-surface-variant/60 focus:ring-0 xl:text-sm"
             placeholder="Buscar documentos..."
             aria-label="Buscar documentos"
             type="text"
