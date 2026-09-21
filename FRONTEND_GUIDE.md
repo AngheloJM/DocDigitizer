@@ -25,18 +25,18 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 2. ~~Sin UI para `logout-all` / `revoke-sessions`~~ — **ya construido**: botón en el menú de usuario y “Cerrar sesiones” en `/usuarios`.
 3. ~~Sin UI de reseteo de contraseña~~ — **ya construido**: modal “Resetear clave” para `super_admin` en `/usuarios`.
 
-**⏳ Pendiente — prioridad media:**
+**⏳ Pendiente:**
 
-4. ~~Ajustar el botón de reprocesar~~ — **ya construido** (21/09/2026): nuevo componente `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
-5. ~~Mostrar el motivo del fallo~~ — **ya construido**: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`). El `error_message` del backend se traduce con `failureReason()` en `lib/types.ts`: los fallos que el usuario puede entender (archivo dañado, PDF con contraseña, sin archivo, tiempo agotado) se muestran con un mensaje claro, y cualquier otro error interno (base de datos, almacenamiento, etc.) se muestra como un mensaje general, sin detalles técnicos.
-6. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar.
-7. ~~Filtro por rango de meses en `/documentos`~~ — **ya construido** (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
-8. ~~Decidir el destino de `/carpetas`~~ — **decidido**: se queda una sola pestaña **Archivo** (`/ubicacion`). `/carpetas` redirige ahí. Implementación oficial: rama `frontend/unificar-archivo` (incluye también el buscador del punto 9). Las otras ramas que tocaban lo mismo (`fix/filtro_meses`, `fix/modal_subirDoc`, PR #72) no deben rehacer esta unificación; si traen otras features, que salgan en PRs aparte.
-9. ~~Buscador de texto dentro de `/carpetas`~~ — **ya construido** en `/ubicacion` (filtra estantes/divisiones/columnas/tomos ya cargados, sin nueva petición al backend).
-10. ~~Vista tabla/grilla intercambiable~~ --**ya construido** en `/documentos` — un botón para alternar entre la tabla actual y una vista de tarjetas.
-11. ~~Modal compartido para subir y editar documentos~~ — **implementado:** se conectó el botón **Subir documento** al modal de edición existente (`DocumentEditModal`), reutilizándolo y unificando las acciones de añadir y editar documentos en un mismo componente, manteniendo el diseño original.
+1. **Sin papelera/restaurar** — el borrado ya es recuperable (`DELETE` hace soft-delete, `POST /documents/{id}/restore` lo recupera, `?include_deleted=true` los lista), pero no hay ninguna pantalla para verlos ni un botón de restaurar. No bloquea el uso básico del sistema.
 
-Ninguno de estos bloquea el uso básico del sistema.
+**✅ Resuelto recientemente** (se deja el detalle por si sirve de referencia técnica):
+- Botón de reprocesar (21/09/2026): `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
+- Motivo del fallo visible: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`, traducido con `failureReason()` en `lib/types.ts`).
+- Filtro por rango de meses en `/documentos` (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
+- Destino de `/carpetas` decidido: una sola pestaña **Archivo** (`/ubicacion`), `/carpetas` redirige ahí. Implementación oficial: rama `frontend/unificar-archivo`.
+- Buscador de texto en `/ubicacion` (filtra estantes/divisiones/columnas/tomos ya cargados, sin nueva petición al backend).
+- Vista tabla/grilla intercambiable en `/documentos`.
+- Modal compartido para subir y editar documentos: el botón **Subir documento** reutiliza `DocumentEditModal`.
 
 ## Pantalla de inicio (13/09/2026)
 
