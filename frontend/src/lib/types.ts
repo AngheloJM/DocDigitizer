@@ -89,10 +89,20 @@ export type LocationNode = {
 };
 
 export const ROLE_LABEL: Record<Role, string> = {
-  student: "Estudiante",
+  // Clave API temporal (`student`); el texto se puede cambiar sin tocar permisos.
+  student: "Usuario",
   admin: "Administrador",
   super_admin: "Super administrador",
 };
+
+export const ROLE_DESCRIPTION: Record<Role, string> = {
+  student: "Solo ve Documentos: lo suyo o lo asignado. Busca ahí mismo, sin otras pestañas.",
+  admin: "Gestiona usuarios y los documentos/archivo de todos.",
+  super_admin:
+    "Igual que un administrador, además puede crear administradores y cambiar roles.",
+};
+
+export const MANAGEABLE_ROLES: ManageableRole[] = ["student", "admin"];
 
 export const STATUS_LABEL: Record<string, string> = {
   pending: "Pendiente",
@@ -102,8 +112,54 @@ export const STATUS_LABEL: Record<string, string> = {
   reprocessing: "Reprocesando",
 };
 
+/** Staff: admin y super_admin. */
 export function isStaff(role: Role) {
   return role === "admin" || role === "super_admin";
+}
+
+export function isSuperAdmin(role: Role) {
+  return role === "super_admin";
+}
+
+/** Solo staff entra a Administración de usuarios. */
+export function canManageUsers(role: Role) {
+  return isStaff(role);
+}
+
+/** Solo super_admin cambia roles y crea administradores. */
+export function canChangeRoles(role: Role) {
+  return isSuperAdmin(role);
+}
+
+export function canCreateAdmin(role: Role) {
+  return isSuperAdmin(role);
+}
+
+/** Solo staff asigna documentos a otras personas. */
+export function canAssignDocuments(role: Role) {
+  return isStaff(role);
+}
+
+/** Staff puede navegar inicio, archivo físico y búsqueda avanzada. */
+export function canBrowseArchive(role: Role) {
+  return isStaff(role);
+}
+
+export function canUseAdvancedSearch(role: Role) {
+  return isStaff(role);
+}
+
+/** Staff, dueño o usuario asignado pueden editar / subir escaneo / reprocesar. */
+export function canEditDocument(
+  role: Role,
+  userId: string,
+  document: { user_id: string; assigned_to_id: string | null },
+) {
+  return (
+    isStaff(role) ||
+    document.user_id === userId ||
+    document.assigned_to_id === userId
+  );
 }
 
 export function initials(name: string) {

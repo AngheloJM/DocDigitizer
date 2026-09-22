@@ -27,9 +27,10 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 **⏳ Pendiente:**
 
-_(ninguno bloqueante en frontend ahora mismo)_. En curso, sin mergear todavía: rama `frontend/roles-descripcion` (restringir acciones por rol, buscador dentro de documentos para todos los roles, mostrar los 3 roles en administración).
+_(ninguno bloqueante en frontend ahora mismo)_
 
 **✅ Resuelto recientemente** (se deja el detalle por si sirve de referencia técnica):
+- Roles / navegación (rama `frontend/roles-descripcion`): el rol `student` (etiqueta “Usuario”) solo ve Documentos y busca ahí; staff tiene Inicio/Archivo/Búsqueda/Administración. En Administración se muestran los 3 roles con descripción.
 - Papelera / restaurar (22/09/2026, PR #78 "papelera-2"): botón “Mover a papelera” (`DELETE /documents/{id}`), vista Papelera en `/documentos` con `?include_deleted=true` (solo staff; lista **solo** borrados, con paginación correcta) y “Restaurar” (`POST /documents/{id}/restore`).
 - Botón de reprocesar (21/09/2026): `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
 - Motivo del fallo visible: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`, traducido con `failureReason()` en `lib/types.ts`).

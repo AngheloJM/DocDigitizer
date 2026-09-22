@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DocumentRecoveryActions } from "@/components/documents/DocumentRecoveryActions";
 import { DocumentEditModal } from "@/components/documents/DocumentEditModal";
@@ -14,6 +14,8 @@ import { MonthOptions } from "@/components/ui/MonthOptions";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import {
+  canAssignDocuments,
+  canEditDocument,
   formatArchivedPeriod,
   formatPhysicalLocation,
   isStaff,
@@ -29,7 +31,9 @@ function DocumentosContent() {
   const params = useSearchParams();
   const router = useRouter();
   const openUpload = params.get("upload") === "1";
+  const initialQuery = params.get("q")?.trim() ?? "";
   const staff = Boolean(user && isStaff(user.role));
+  const canAssign = Boolean(user && canAssignDocuments(user.role));
 
   const [items, setItems] = useState<DocumentItem[]>([]);
   const [view, setView] = useState<"table" | "grid">("table");
@@ -49,6 +53,8 @@ function DocumentosContent() {
   const [shelfFilter, setShelfFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [assignmentFilter, setAssignmentFilter] = useState<"all" | "mine">("all");
+  const [searchInput, setSearchInput] = useState(initialQuery);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [scanDocId, setScanDocId] = useState<string | null>(null);
   const [scanBusy, setScanBusy] = useState(false);
   const scanBusyRef = useRef(false);
@@ -88,6 +94,19 @@ function DocumentosContent() {
     setLoading(true);
     setError(null);
     try {
+      if (searchQuery.trim() && !showTrash) {
+        const data = await backend.search({
+          q: searchQuery.trim(),
+          page: pagina,
+          perPage: PAGI_SIZE,
+        });
+        if (requestId !== listRequestRef.current) return;
+        setItems(data.items.map((row) => row.document));
+        setTotal(data.total);
+        setTotalPaginas(data.pages);
+        return;
+      }
+
       const data = await backend.documents.list({
         page: pagina,
         perPage: PAGI_SIZE,
@@ -110,7 +129,30 @@ function DocumentosContent() {
     } finally {
       if (requestId === listRequestRef.current) setLoading(false);
     }
-  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter, showTrash]);
+  }, [user, pagina, yearFilter, monthFromFilter, monthToFilter, shelfFilter, statusFilter, assignmentFilter, showTrash, searchQuery]);
+
+  function applySearch(event?: FormEvent) {
+    event?.preventDefault();
+    const next = searchInput.trim();
+    setShowTrash(false);
+    setPagina(1);
+    setSearchQuery(next);
+    const url = next ? `/documentos?q=${encodeURIComponent(next)}` : "/documentos";
+    router.replace(url);
+  }
+
+  function clearSearch() {
+    setSearchInput("");
+    setSearchQuery("");
+    setPagina(1);
+    router.replace("/documentos");
+  }
+
+  useEffect(() => {
+    const nextQuery = params.get("q")?.trim() ?? "";
+    setSearchInput(nextQuery);
+    setSearchQuery(nextQuery);
+  }, [params]);
 
   useEffect(() => {
     void loadUsers();
@@ -189,13 +231,9 @@ function DocumentosContent() {
     }
   }
 
-  function canEditDocument(document: DocumentItem) {
+  function canEdit(document: DocumentItem) {
     if (!user) return false;
-    return (
-      isStaff(user.role) ||
-      document.user_id === user.id ||
-      document.assigned_to_id === user.id
-    );
+    return canEditDocument(user.role, user.id, document);
   }
 
   function handleDocumentSaved() {
@@ -326,7 +364,7 @@ function DocumentosContent() {
     }
     return (
       <div className="min-w-0 [overflow-wrap:anywhere]">
-        {staff ? (
+        {canAssign ? (
           <select
             value={doc.assigned_to_id ?? ""}
             aria-label={`Asignar documento: ${doc.title}`}
@@ -378,7 +416,7 @@ function DocumentosContent() {
 
     return (
       <div className="inline-flex flex-wrap items-center gap-1 justify-end [&_button]:max-xl:min-h-11 [&_button]:max-xl:min-w-11 [&_a]:max-xl:min-h-11 [&_a]:max-xl:min-w-11 [&_button]:items-center [&_button]:justify-center [&_a]:items-center [&_a]:justify-center">
-        {canEditDocument(doc) && (
+        {canEdit(doc) && (
           <button
             type="button"
             onClick={() => {
@@ -392,7 +430,7 @@ function DocumentosContent() {
             <Icon name="edit" className="text-lg" />
           </button>
         )}
-        {canEditDocument(doc) && (
+        {canEdit(doc) && (
           <DocumentRecoveryActions
             document={doc}
             busy={reprocessingIds.has(doc.id) || (scanBusy && scanDocId === doc.id)}
@@ -412,7 +450,7 @@ function DocumentosContent() {
           </a>
         ) : null}
 
-        {canEditDocument(doc) && (
+        {canEdit(doc) && (
           <button
             type="button"
             onClick={() => void onMoveToTrash(doc.id)}
@@ -456,7 +494,10 @@ function DocumentosContent() {
               onClick={() => {
                 setShowTrash((current) => !current);
                 setPagina(1);
+                setSearchInput("");
+                setSearchQuery("");
                 setError(null);
+                router.replace("/documentos");
               }}
               className="w-full sm:w-auto shrink-0 min-h-11 border border-outline-variant text-on-surface text-sm font-medium py-2.5 px-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-surface-container transition-colors whitespace-nowrap"
             >
@@ -479,18 +520,58 @@ function DocumentosContent() {
         </div>
       </div>
 
-      <div className="min-w-0 bg-white rounded-2xl p-4 border border-outline-variant mb-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div className="min-w-0 bg-white rounded-2xl p-4 border border-outline-variant mb-6 space-y-4">
+        {!showTrash && (
+          <form onSubmit={applySearch} className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <div className="pointer-events-none absolute inset-y-0 left-0 grid w-10 place-items-center text-on-surface-variant">
+                <Icon name="search" className="text-lg" />
+              </div>
+              <input
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Buscar documento por texto..."
+                className="w-full min-h-11 border border-outline-variant rounded-2xl bg-white pl-10 pr-3 py-2.5 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 sm:flex-none min-h-11 rounded-2xl bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-light transition-colors"
+              >
+                Buscar
+              </button>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="min-h-11 rounded-2xl border border-outline-variant px-4 py-2.5 text-sm font-medium text-on-surface-variant hover:bg-surface-container transition-colors"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </form>
+        )}
+        {searchQuery && !showTrash ? (
+          <p className="text-xs text-on-surface-variant">
+            Resultados para “{searchQuery}” · {total} documento{total === 1 ? "" : "s"}
+          </p>
+        ) : null}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         <div className="min-w-0">
           <label className="block text-[11px] uppercase tracking-wider text-on-surface-variant mb-1.5 font-medium">
             Año archivado
           </label>
           <select
             value={yearFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setYearFilter(event.target.value);
               setPagina(1);
             }}
-            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="">Todos</option>
             {YEAR_OPTIONS.map((year) => (
@@ -504,11 +585,12 @@ function DocumentosContent() {
           <select
             id="document-month-from"
             value={monthFromFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setMonthFromFilter(event.target.value);
               setPagina(1);
             }}
-            className={`${formControlClass} min-w-0 min-h-11 text-base xl:text-sm`}
+            className={`${formControlClass} min-w-0 min-h-11 text-base xl:text-sm disabled:opacity-60`}
           >
             <MonthOptions allowEmpty emptyLabel="Sin límite inferior" max={monthToFilter ? Number(monthToFilter) : 12} />
           </select>
@@ -517,11 +599,12 @@ function DocumentosContent() {
           <select
             id="document-month-to"
             value={monthToFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setMonthToFilter(event.target.value);
               setPagina(1);
             }}
-            className={`${formControlClass} min-w-0 min-h-11 text-base xl:text-sm`}
+            className={`${formControlClass} min-w-0 min-h-11 text-base xl:text-sm disabled:opacity-60`}
           >
             <MonthOptions allowEmpty emptyLabel="Sin límite superior" min={monthFromFilter ? Number(monthFromFilter) : 1} />
           </select>
@@ -532,12 +615,13 @@ function DocumentosContent() {
           </label>
           <input
             value={shelfFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setShelfFilter(event.target.value);
               setPagina(1);
             }}
             placeholder="Ej: A1"
-            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           />
         </div>
         <div className="min-w-0">
@@ -546,11 +630,12 @@ function DocumentosContent() {
           </label>
           <select
             value={statusFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setStatusFilter(event.target.value);
               setPagina(1);
             }}
-            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="">Todos</option>
             <option value="pending">Pendiente</option>
@@ -565,15 +650,17 @@ function DocumentosContent() {
           </label>
           <select
             value={assignmentFilter}
+            disabled={Boolean(searchQuery) && !showTrash}
             onChange={(event) => {
               setAssignmentFilter(event.target.value as "all" | "mine");
               setPagina(1);
             }}
-            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+            className="w-full min-w-0 min-h-11 border border-outline-variant rounded-2xl bg-white px-3 py-2 text-base xl:text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-60"
           >
             <option value="all">Todos</option>
             <option value="mine">Asignados a mí</option>
           </select>
+        </div>
         </div>
       </div>
 

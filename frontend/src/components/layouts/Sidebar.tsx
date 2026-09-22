@@ -6,13 +6,17 @@ import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useUi } from "@/components/providers/UiProvider";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { isStaff } from "@/lib/types";
+import { canBrowseArchive, canManageUsers } from "@/lib/types";
 
-const navItems = [
+const staffNavItems = [
   { href: "/inicio", icon: "home", label: "Inicio" },
   { href: "/ubicacion", icon: "shelves", label: "Archivo" },
   { href: "/documentos", icon: "description", label: "Documentos" },
   { href: "/busqueda", icon: "search", label: "Búsqueda" },
+];
+
+const userNavItems = [
+  { href: "/documentos", icon: "description", label: "Documentos" },
 ];
 
 export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose: () => void }) {
@@ -22,9 +26,10 @@ export function Sidebar({ mobileOpen, onClose }: { mobileOpen: boolean; onClose:
   const pathname = usePathname();
   const collapsed = isDesktop && sidebarCollapsed;
   const showLabels = !collapsed;
+  const isArchiveStaff = Boolean(user && canBrowseArchive(user.role));
   const items = [
-    ...navItems,
-    ...(user && isStaff(user.role)
+    ...(isArchiveStaff ? staffNavItems : userNavItems),
+    ...(user && canManageUsers(user.role)
       ? [{ href: "/usuarios", icon: "admin_panel_settings", label: "Administración" }]
       : []),
   ];

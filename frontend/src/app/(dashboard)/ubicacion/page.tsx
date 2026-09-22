@@ -3,12 +3,14 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import {
+  canBrowseArchive,
   formatArchivedPeriod,
   formatPhysicalLocation,
   type DocumentItem,
@@ -28,6 +30,7 @@ const LEVEL_META: Record<
 };
 
 function UbicacionContent() {
+  const { user } = useAuth();
   const params = useSearchParams();
   const router = useRouter();
 
@@ -35,6 +38,12 @@ function UbicacionContent() {
   const division = params.get("division");
   const column = params.get("column");
   const volume = params.get("volume");
+
+  useEffect(() => {
+    if (user && !canBrowseArchive(user.role)) {
+      router.replace("/documentos");
+    }
+  }, [user, router]);
 
   const currentLevel: LevelKey = !shelf
     ? "shelf"
