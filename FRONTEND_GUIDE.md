@@ -4,7 +4,7 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 > 🔧 **Ronda de hardening de backend (14/09/2026):** se mezclaron 7 PRs de endurecimiento (rate limiting en el resto de endpoints, reintentos automáticos del pipeline, mensaje de error visible, blacklist de tokens al cerrar sesión, revocar todas las sesiones, soft-delete de documentos, y reseteo de contraseña por super_admin). El detalle de cada uno está en las secciones correspondientes más abajo — buscá los bloques marcados como **(nuevo, 14/09/2026)**.
 
-## Estado actual (2026-09-21)
+## Estado actual (2026-09-22)
 
 **✅ Ya construido y funcionando en producción:**
 - Login con branding UTEPSA (`src/app/login/page.tsx`), sesión con cookies httpOnly, renovación automática del access token antes de que expire (single-flight lock, sin condición de carrera) y limpieza de cookies al cerrar sesión.
@@ -27,10 +27,10 @@ Este documento resume qué puedes construir **ya mismo** contra el backend, cóm
 
 **⏳ Pendiente:**
 
-_(ninguno bloqueante en frontend ahora mismo)_
+_(ninguno bloqueante en frontend ahora mismo)_. En curso, sin mergear todavía: rama `frontend/roles-descripcion` (restringir acciones por rol, buscador dentro de documentos para todos los roles, mostrar los 3 roles en administración).
 
 **✅ Resuelto recientemente** (se deja el detalle por si sirve de referencia técnica):
-- Papelera / restaurar (rama `frontend/fix-papelera`): botón “Mover a papelera” (`DELETE /documents/{id}`), vista Papelera en `/documentos` con `?include_deleted=true` (solo staff; lista **solo** borrados, con paginación correcta) y “Restaurar” (`POST /documents/{id}/restore`).
+- Papelera / restaurar (22/09/2026, PR #78 "papelera-2"): botón “Mover a papelera” (`DELETE /documents/{id}`), vista Papelera en `/documentos` con `?include_deleted=true` (solo staff; lista **solo** borrados, con paginación correcta) y “Restaurar” (`POST /documents/{id}/restore`).
 - Botón de reprocesar (21/09/2026): `DocumentRecoveryActions` consulta el detalle real del documento (`GET /documents/{id}`) para decidir si mostrar "subir escaneo" o "reprocesar" según si ya existe un archivo original, en vez de adivinar solo por `status`. Ya no muestra "subir escaneo" a un documento `"failed"` que ya tiene archivo (evita el `409` que devolvía el backend en ese caso).
 - Motivo del fallo visible: los documentos `"failed"` muestran el motivo en `/documentos`, `/ubicacion`, `/inicio` y `/busqueda` (componente `FailureReason`, traducido con `failureReason()` en `lib/types.ts`).
 - Filtro por rango de meses en `/documentos` (17/09/2026): selector "mes archivado desde/hasta" usando `?archived_month_from=&archived_month_to=`.
