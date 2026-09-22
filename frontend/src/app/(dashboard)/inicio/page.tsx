@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { FailureReason } from "@/components/ui/FailureReason";
 import { Icon } from "@/components/ui/Icon";
@@ -9,6 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
 import {
+  canBrowseArchive,
   formatArchivedPeriod,
   formatPhysicalLocation,
   type DocumentItem,
@@ -37,9 +39,16 @@ function formatWhen(value: string) {
 
 export default function InicioPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user && !canBrowseArchive(user.role)) {
+      router.replace("/documentos");
+    }
+  }, [user, router]);
 
   const load = useCallback(async () => {
     if (!user) return;

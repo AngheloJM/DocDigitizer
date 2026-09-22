@@ -7,7 +7,13 @@ import { FormField, formControlClass } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { ROLE_LABEL, type ManageableRole, type User } from "@/lib/types";
+import {
+  MANAGEABLE_ROLES,
+  ROLE_DESCRIPTION,
+  ROLE_LABEL,
+  type ManageableRole,
+  type User,
+} from "@/lib/types";
 
 type UserRoleModalProps = {
   open: boolean;
@@ -88,6 +94,9 @@ export function UserRoleModal({
             <p className="mt-1 text-sm font-semibold text-on-surface">
               {ROLE_LABEL[target.role]}
             </p>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              {ROLE_DESCRIPTION[target.role]}
+            </p>
           </div>
 
           <FormField id="new-user-role" label="Nuevo rol">
@@ -97,16 +106,16 @@ export function UserRoleModal({
               onChange={(event) => setRole(event.target.value as ManageableRole)}
               className={formControlClass}
             >
-              <option value="student">Estudiante</option>
-              <option value="admin">Administrador</option>
+              {MANAGEABLE_ROLES.map((option) => (
+                <option key={option} value={option}>
+                  {ROLE_LABEL[option]}
+                </option>
+              ))}
             </select>
+            <p className="mt-1.5 text-xs text-on-surface-variant">
+              {ROLE_DESCRIPTION[role]}
+            </p>
           </FormField>
-
-          {role === "admin" && target.role !== "admin" && (
-            <div className="rounded-2xl border border-secondary/40 bg-secondary/10 px-4 py-3 text-sm leading-relaxed text-on-surface">
-              Este usuario podrá administrar estudiantes y consultar documentos institucionales.
-            </div>
-          )}
         </div>
 
         <FormActions
