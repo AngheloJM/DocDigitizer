@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -9,10 +9,10 @@ import { FormActions } from "@/components/ui/FormActions";
 import { FormField, formControlClass } from "@/components/ui/FormField";
 import { FormSection } from "@/components/ui/FormSection";
 import { Modal } from "@/components/ui/Modal";
+import { ShelfListbox } from "@/components/ui/ShelfListbox";
 import { MonthOptions } from "@/components/ui/MonthOptions";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
 import type { DocumentItem, DocumentUpdateInput } from "@/lib/types";
 
 const optionalText = (maximum: number) =>
@@ -27,7 +27,6 @@ const documentSchema = z
       .max(255, "Máximo 255 caracteres"),
     description: z.string(),
     doc_type: optionalText(100),
-    folder_id: z.string(),
     physical_shelf: optionalText(50),
     physical_division: optionalText(50),
     physical_column: optionalText(50),
@@ -79,7 +78,6 @@ function getDefaultValues(document: DocumentItem | null): DocumentFormValues {
     title: document?.title ?? "",
     description: document?.description ?? "",
     doc_type: document?.doc_type ?? "",
-    folder_id: document?.folder_id ?? "",
     physical_shelf: document?.physical_shelf ?? "",
     physical_division: document?.physical_division ?? "",
     physical_column: document?.physical_column ?? "",
@@ -97,16 +95,15 @@ function getDefaultValues(document: DocumentItem | null): DocumentFormValues {
 export function DocumentEditModal({
   open,
   document,
-  ownerId,
   onClose,
   onSaved,
 }: DocumentEditModalProps) {
   const isCreating = document === null;
-  const folderOwnerId = document?.user_id ?? ownerId;
-
-  const [folders, setFolders] = useState<FolderOption[]>([]);
-  const [folderLoading, setFolderLoading] = useState(true);
-  const [folderError, setFolderError] = useState<string | null>(null);
+  const [shelves, setShelves] = useState<string[]>([]);
+  const [shelfMode, setShelfMode] = useState<"existing" | "new">("existing");
+  const [shelfLoading, setShelfLoading] = useState(true);
+  const [shelfError, setShelfError] = useState<string | null>(null);
+  const [shelfAttempt, setShelfAttempt] = useState(0);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -118,6 +115,11 @@ export function DocumentEditModal({
   const {
     register,
     reset,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    getValues,
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<DocumentFormValues>({
@@ -125,37 +127,81 @@ export function DocumentEditModal({
     defaultValues: getDefaultValues(document),
   });
 
+  const selectedShelf = watch("physical_shelf");
+  const shelfOptions = Array.from(new Set([
+    ...(document?.physical_shelf ? [document.physical_shelf] : []),
+    ...shelves,
+  ]));
+
   useEffect(() => {
     if (!open) return;
-
-    let cancelled = false;
     reset(getDefaultValues(document));
+    setShelfMode("existing");
     setServerError(null);
-    setFolderError(null);
     setFile(null);
     setFileError(null);
     setUploadedDocumentId(null);
-    setFolders([]);
-    setFolderLoading(true);
+  }, [open, document, reset]);
 
-    loadFolderTree(folderOwnerId)
-      .then((options) => {
-        if (!cancelled) setFolders(options);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setShelfLoading(true);
+    setShelfError(null);
+    setShelves([]);
+    backend.documents.locations()
+      .then((nodes) => {
+        if (!cancelled) setShelves(nodes.map((node) => node.value).filter((value) => value.trim() !== ""));
       })
       .catch(() => {
-        if (!cancelled) {
-          setFolderError("No se pudieron cargar las carpetas. Cierra y vuelve a abrir el formulario.");
-        }
+        if (!cancelled) setShelfError("No se pudieron cargar los estantes.");
       })
       .finally(() => {
-        if (!cancelled) setFolderLoading(false);
+        if (!cancelled) setShelfLoading(false);
       });
+    return () => { cancelled = true; };
+  }, [open, shelfAttempt]);
 
-    return () => {
-      cancelled = true;
+  function registerLocation(name: "physical_shelf" | "physical_division" | "physical_column" | "physical_volume") {
+    const field = register(name);
+    return {
+      ...field,
+      onChange: (event: ChangeEvent<HTMLInputElement>) => {
+        const input = event.target;
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const before = input.value;
+        input.value = before.toUpperCase();
+        if (start !== null && end !== null) {
+          input.setSelectionRange(
+            before.slice(0, start).toUpperCase().length,
+            before.slice(0, end).toUpperCase().length,
+          );
+        }
+        return field.onChange(event);
+      },
     };
-  }, [open, document, folderOwnerId, reset]);
+  }
 
+  function changeShelf(value: string) {
+    const previous = getValues("physical_shelf");
+    if (value !== previous) {
+      const hasLocation = ["physical_division", "physical_column", "physical_volume"]
+        .some((field) => Boolean(getValues(field as keyof DocumentFormValues)));
+      if (hasLocation && !window.confirm("Al cambiar de estante se limpiarán división, columna y tomo. ¿Deseas continuar?")) return false;
+      setValue("physical_shelf", value, { shouldDirty: true, shouldValidate: true });
+      for (const field of ["physical_division", "physical_column", "physical_volume"] as const) {
+        setValue(field, "", { shouldDirty: true });
+      }
+    }
+    clearErrors("physical_shelf");
+    return true;
+  }
+
+  function changeShelfMode(mode: "existing" | "new") {
+    if (mode === shelfMode) return;
+    if (changeShelf("")) setShelfMode(mode);
+  }
 
   function requestClose() {
     if (isSubmitting || submittingRef.current) return;
@@ -172,7 +218,16 @@ export function DocumentEditModal({
   }
 
   async function onSubmit(values: DocumentFormValues) {
-    if (submittingRef.current || folderLoading || folderError) return;
+    if (submittingRef.current || shelfLoading || shelfError) return;
+    const shelf = values.physical_shelf.trim();
+    if (shelfMode === "new" && !shelf) {
+      setError("physical_shelf", { message: "Escribe el nombre del nuevo estante o selecciona Sin estante en Estante existente." });
+      return;
+    }
+    if (shelfMode === "new" && shelfOptions.some((option) => option.trim().toLocaleLowerCase() === shelf.toLocaleLowerCase())) {
+      setError("physical_shelf", { message: "Ese estante ya existe. Selecciónalo en Estante existente." });
+      return;
+    }
     setServerError(null);
     setFileError(null);
 
@@ -203,8 +258,7 @@ export function DocumentEditModal({
       title: values.title.trim(),
       description: values.description.trim(),
       doc_type: values.doc_type.trim(),
-      folder_id: values.folder_id || null,
-      physical_shelf: values.physical_shelf.trim(),
+      physical_shelf: shelf || null,
       physical_division: values.physical_division.trim(),
       physical_column: values.physical_column.trim(),
       physical_volume: values.physical_volume.trim(),
@@ -265,9 +319,9 @@ export function DocumentEditModal({
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="min-w-0 space-y-6 border-0 p-4 sm:p-6">
-          {(folderError || serverError) && (
+          {serverError && (
             <div role="alert" className="rounded-2xl bg-error-container px-4 py-3 text-sm text-error">
-              {folderError || serverError}
+              {serverError}
             </div>
           )}
           {isCreating && (
@@ -334,30 +388,6 @@ export function DocumentEditModal({
               </FormField>
 
               <FormField
-                id="document-folder"
-                label="Carpeta"
-                hint={folderLoading ? "Cargando carpetas..." : undefined}
-              >
-                <select
-                  id="document-folder"
-                  {...register("folder_id")}
-                  disabled={folderLoading}
-                  className={formControlClass}
-                >
-                  <option value="">Sin carpeta</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.label}
-                    </option>
-                  ))}
-                  {document?.folder_id && !folders.some((folder) => folder.id === document.folder_id) && 
-                  (
-                    <option value={document.folder_id}>Carpeta actual</option>
-                  )}
-                </select>
-              </FormField>
-
-              <FormField
                 id="document-description"
                 label="Descripción"
                 className="md:col-span-2"
@@ -377,18 +407,56 @@ export function DocumentEditModal({
             description="Ubicación del documento dentro del archivo físico institucional."
             separated
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <FormField id="physical-shelf" label="Estante" error={errors.physical_shelf?.message}>
-                <input id="physical-shelf" {...register("physical_shelf")} placeholder="Ej: E-03" className={formControlClass} />
+            <fieldset className="mb-4 space-y-3">
+              <legend className="mb-2 text-sm font-medium text-on-surface">Estante</legend>
+              <div className="flex flex-wrap gap-4">
+                {([
+                  { value: "existing", label: "Estante existente" },
+                  { value: "new", label: "Nuevo estante" },
+                ] as const).map((mode) => (
+                  <label key={mode.value} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-on-surface">
+                    <input type="radio" name="shelf-mode" value={mode.value}
+                      checked={shelfMode === mode.value} onChange={() => changeShelfMode(mode.value)}
+                      className="h-4 w-4 accent-primary" />
+                    {mode.label}
+                  </label>
+                ))}
+              </div>
+              {shelfError && (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-error">
+                  <span>{shelfError}</span>
+                  <button type="button" onClick={() => setShelfAttempt((value) => value + 1)}
+                    className="min-h-11 rounded-xl px-3 font-medium underline">Reintentar</button>
+                </div>
+              )}
+              <FormField id="physical-shelf" label={shelfMode === "existing" ? "Seleccionar estante" : "Nombre del nuevo estante"}
+                error={errors.physical_shelf?.message}
+                hint={shelfLoading ? "Cargando estantes…" : shelfMode === "existing"
+                  ? "Selecciona un estante de la lista. La ubicación es opcional."
+                  : "El estante aparecerá en Archivo al guardar el documento."}>
+                {shelfMode === "existing" ? (
+                  <ShelfListbox id="physical-shelf" value={selectedShelf} options={shelfOptions}
+                    disabled={shelfLoading || Boolean(shelfError)}
+                    onChange={changeShelf} invalid={Boolean(errors.physical_shelf)} />
+                ) : (
+                  <input id="physical-shelf" {...registerLocation("physical_shelf")} autoCapitalize="characters" maxLength={50}
+                    placeholder="Ej: E-03" className={formControlClass}
+                    aria-invalid={Boolean(errors.physical_shelf)} />
+                )}
               </FormField>
+              {!shelfLoading && !shelfError && shelfOptions.length === 0 && shelfMode === "existing" && (
+                <p className="text-xs text-on-surface-variant">No hay estantes disponibles. Puedes elegir Nuevo estante.</p>
+              )}
+            </fieldset>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <FormField id="physical-division" label="División" error={errors.physical_division?.message}>
-                <input id="physical-division" {...register("physical_division")} placeholder="Ej: B-02" className={formControlClass} />
+                <input id="physical-division" {...registerLocation("physical_division")} autoCapitalize="characters" placeholder="Ej: B-02" className={formControlClass} />
               </FormField>
               <FormField id="physical-column" label="Columna" error={errors.physical_column?.message}>
-                <input id="physical-column" {...register("physical_column")} placeholder="Ej: C-01" className={formControlClass} />
+                <input id="physical-column" {...registerLocation("physical_column")} autoCapitalize="characters" placeholder="Ej: C-01" className={formControlClass} />
               </FormField>
               <FormField id="physical-volume" label="Tomo" error={errors.physical_volume?.message}>
-                <input id="physical-volume" {...register("physical_volume")} placeholder="Ej: T-01" className={formControlClass} />
+                <input id="physical-volume" {...registerLocation("physical_volume")} autoCapitalize="characters" placeholder="Ej: T-01" className={formControlClass} />
               </FormField>
             </div>
           </FormSection>
@@ -437,7 +505,7 @@ export function DocumentEditModal({
           submitLabel={uploadedDocumentId ? "Completar datos" : isCreating ? "Subir documento" : "Guardar cambios"}
           submittingLabel={isCreating ? "Guardando documento..." : "Guardando cambios..."}
           isSubmitting={isSubmitting}
-          submitDisabled={folderLoading || Boolean(folderError) || (!isCreating && !isDirty)}
+          submitDisabled={shelfLoading || Boolean(shelfError) || (!isCreating && !isDirty)}
           onCancel={requestClose}
         />
       </form>
