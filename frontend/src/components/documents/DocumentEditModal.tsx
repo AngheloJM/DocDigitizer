@@ -12,7 +12,6 @@ import { Modal } from "@/components/ui/Modal";
 import { MonthOptions } from "@/components/ui/MonthOptions";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
 import type { DocumentItem, DocumentUpdateInput } from "@/lib/types";
 
 const optionalText = (maximum: number) =>
@@ -27,7 +26,6 @@ const documentSchema = z
       .max(255, "Máximo 255 caracteres"),
     description: z.string(),
     doc_type: optionalText(100),
-    folder_id: z.string(),
     physical_shelf: optionalText(50),
     physical_division: optionalText(50),
     physical_column: optionalText(50),
@@ -69,7 +67,6 @@ type DocumentFormValues = z.infer<typeof documentSchema>;
 type DocumentEditModalProps = {
   open: boolean;
   document: DocumentItem | null;
-  ownerId: string;
   onClose: () => void;
   onSaved: (document: DocumentItem) => void;
 };
@@ -79,7 +76,6 @@ function getDefaultValues(document: DocumentItem | null): DocumentFormValues {
     title: document?.title ?? "",
     description: document?.description ?? "",
     doc_type: document?.doc_type ?? "",
-    folder_id: document?.folder_id ?? "",
     physical_shelf: document?.physical_shelf ?? "",
     physical_division: document?.physical_division ?? "",
     physical_column: document?.physical_column ?? "",
@@ -97,16 +93,11 @@ function getDefaultValues(document: DocumentItem | null): DocumentFormValues {
 export function DocumentEditModal({
   open,
   document,
-  ownerId,
   onClose,
   onSaved,
 }: DocumentEditModalProps) {
   const isCreating = document === null;
-  const folderOwnerId = document?.user_id ?? ownerId;
 
-  const [folders, setFolders] = useState<FolderOption[]>([]);
-  const [folderLoading, setFolderLoading] = useState(true);
-  const [folderError, setFolderError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -128,33 +119,12 @@ export function DocumentEditModal({
   useEffect(() => {
     if (!open) return;
 
-    let cancelled = false;
     reset(getDefaultValues(document));
     setServerError(null);
-    setFolderError(null);
     setFile(null);
     setFileError(null);
     setUploadedDocumentId(null);
-    setFolders([]);
-    setFolderLoading(true);
-
-    loadFolderTree(folderOwnerId)
-      .then((options) => {
-        if (!cancelled) setFolders(options);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFolderError("No se pudieron cargar las carpetas. Cierra y vuelve a abrir el formulario.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setFolderLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, document, folderOwnerId, reset]);
+  }, [open, document, reset]);
 
 
   function requestClose() {
@@ -172,7 +142,7 @@ export function DocumentEditModal({
   }
 
   async function onSubmit(values: DocumentFormValues) {
-    if (submittingRef.current || folderLoading || folderError) return;
+    if (submittingRef.current) return;
     setServerError(null);
     setFileError(null);
 
@@ -203,7 +173,6 @@ export function DocumentEditModal({
       title: values.title.trim(),
       description: values.description.trim(),
       doc_type: values.doc_type.trim(),
-      folder_id: values.folder_id || null,
       physical_shelf: values.physical_shelf.trim(),
       physical_division: values.physical_division.trim(),
       physical_column: values.physical_column.trim(),
@@ -265,9 +234,9 @@ export function DocumentEditModal({
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <fieldset disabled={isSubmitting} className="min-w-0 space-y-6 border-0 p-4 sm:p-6">
-          {(folderError || serverError) && (
+          {serverError && (
             <div role="alert" className="rounded-2xl bg-error-container px-4 py-3 text-sm text-error">
-              {folderError || serverError}
+              {serverError}
             </div>
           )}
           {isCreating && (
@@ -331,30 +300,6 @@ export function DocumentEditModal({
                   className={formControlClass}
                   aria-invalid={Boolean(errors.doc_type)}
                 />
-              </FormField>
-
-              <FormField
-                id="document-folder"
-                label="Carpeta"
-                hint={folderLoading ? "Cargando carpetas..." : undefined}
-              >
-                <select
-                  id="document-folder"
-                  {...register("folder_id")}
-                  disabled={folderLoading}
-                  className={formControlClass}
-                >
-                  <option value="">Sin carpeta</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.label}
-                    </option>
-                  ))}
-                  {document?.folder_id && !folders.some((folder) => folder.id === document.folder_id) && 
-                  (
-                    <option value={document.folder_id}>Carpeta actual</option>
-                  )}
-                </select>
               </FormField>
 
               <FormField
@@ -437,7 +382,7 @@ export function DocumentEditModal({
           submitLabel={uploadedDocumentId ? "Completar datos" : isCreating ? "Subir documento" : "Guardar cambios"}
           submittingLabel={isCreating ? "Guardando documento..." : "Guardando cambios..."}
           isSubmitting={isSubmitting}
-          submitDisabled={folderLoading || Boolean(folderError) || (!isCreating && !isDirty)}
+          submitDisabled={!isCreating && !isDirty}
           onCancel={requestClose}
         />
       </form>
