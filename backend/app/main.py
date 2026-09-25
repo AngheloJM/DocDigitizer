@@ -11,7 +11,6 @@ from app.config import get_settings
 from app.dependencies import DbSession
 from app.documents.router import router as documents_router
 from app.documents.search_router import router as search_router
-from app.folders.router import router as folders_router
 from app.logging_config import configure_logging
 from app.redis_client import get_redis_client
 from app.storage.minio_client import get_minio_client
@@ -32,7 +31,6 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(folders_router, prefix="/api/v1/folders", tags=["folders"])
 app.include_router(documents_router, prefix="/api/v1/documents", tags=["documents"])
 app.include_router(search_router, prefix="/api/v1/search", tags=["search"])
 

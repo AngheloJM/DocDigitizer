@@ -8,7 +8,6 @@ class DocumentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
     doc_type: str | None = Field(default=None, max_length=100)
-    folder_id: uuid.UUID | None = None
     physical_shelf: str | None = Field(default=None, max_length=50)
     physical_division: str | None = Field(default=None, max_length=50)
     physical_column: str | None = Field(default=None, max_length=50)
@@ -23,7 +22,6 @@ class DocumentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     doc_type: str | None = Field(default=None, max_length=100)
-    folder_id: uuid.UUID | None = None
     physical_shelf: str | None = Field(default=None, max_length=50)
     physical_division: str | None = Field(default=None, max_length=50)
     physical_column: str | None = Field(default=None, max_length=50)
@@ -44,7 +42,6 @@ class DocumentResponse(BaseModel):
     status: str
     user_id: uuid.UUID
     assigned_to_id: uuid.UUID | None
-    folder_id: uuid.UUID | None
     physical_shelf: str | None
     physical_division: str | None
     physical_column: str | None

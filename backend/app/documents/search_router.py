@@ -23,7 +23,6 @@ async def search_documents(
     doc_type: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-    folder_id: uuid.UUID | None = None,
     owner_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
@@ -36,7 +35,7 @@ async def search_documents(
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(error))
 
     results, total = await service.search_documents(
-        db, current_user, q, doc_type, date_from, date_to, folder_id, owner_id, page, per_page
+        db, current_user, q, doc_type, date_from, date_to, owner_id, page, per_page
     )
     pages = math.ceil(total / per_page) if total else 0
 

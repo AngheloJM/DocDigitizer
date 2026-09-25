@@ -10,7 +10,6 @@ from app.documents.models import AuditLog
 from app.documents.schemas import DocumentCreate, DocumentUpdate
 from app.documents.service import (
     InvalidAssigneeError,
-    InvalidFolderError,
     create_document,
     get_document,
     get_location_tree,
@@ -18,8 +17,6 @@ from app.documents.service import (
     log_audit_action,
     update_document,
 )
-from app.folders.schemas import FolderCreate
-from app.folders.service import create_folder
 
 
 @pytest.fixture
@@ -44,38 +41,13 @@ async def test_user(db_session):
 
 
 @pytest.mark.asyncio
-async def test_create_document_without_folder(db_session, test_user):
+async def test_create_document(db_session, test_user):
     document = await create_document(db_session, test_user.id, DocumentCreate(title="Acta 2026"))
 
     assert document.title == "Acta 2026"
     assert document.status == "pending"
-    assert document.folder_id is None
 
     await db_session.delete(document)
-    await db_session.commit()
-
-
-@pytest.mark.asyncio
-async def test_create_document_rejects_folder_from_another_user(db_session, test_user):
-    other_user = User(
-        email=f"{uuid.uuid4()}@utepsa-test.edu.bo",
-        password_hash=hash_password("irrelevante123"),
-        full_name="Otro Usuario",
-    )
-    db_session.add(other_user)
-    await db_session.commit()
-    await db_session.refresh(other_user)
-
-    other_folder = await create_folder(db_session, other_user.id, FolderCreate(name="Carpeta ajena"))
-
-    with pytest.raises(InvalidFolderError):
-        await create_document(
-            db_session, test_user.id, DocumentCreate(title="Acta", folder_id=other_folder.id)
-        )
-
-    await db_session.delete(other_folder)
-    await db_session.commit()
-    await db_session.delete(other_user)
     await db_session.commit()
 
 
@@ -260,29 +232,24 @@ async def test_update_document_title(db_session, test_user):
 
 
 @pytest.mark.asyncio
-async def test_update_document_can_explicitly_clear_folder_and_period(db_session, test_user):
-    folder = await create_folder(db_session, test_user.id, FolderCreate(name="Carpeta original"))
+async def test_update_document_can_explicitly_clear_period(db_session, test_user):
     document = await create_document(
         db_session,
         test_user.id,
-        DocumentCreate(
-            title="Acta", folder_id=folder.id, archived_year=2023, archived_month_start=3, archived_month_end=7
-        ),
+        DocumentCreate(title="Acta", archived_year=2023, archived_month_start=3, archived_month_end=7),
     )
 
     updated = await update_document(
         db_session,
         document,
-        DocumentUpdate(folder_id=None, archived_month_end=None),
+        DocumentUpdate(archived_month_end=None),
     )
 
-    assert updated.folder_id is None
     assert updated.archived_year == 2023
     assert updated.archived_month_start == 3
     assert updated.archived_month_end is None
 
     await db_session.delete(document)
-    await db_session.delete(folder)
     await db_session.commit()
 
 
