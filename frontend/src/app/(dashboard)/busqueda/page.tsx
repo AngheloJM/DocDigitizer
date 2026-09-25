@@ -20,7 +20,6 @@ import { Pagina } from "@/components/ui/paginacion";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ApiError } from "@/lib/api";
 import { backend } from "@/lib/backend";
-import { loadFolderTree, type FolderOption } from "@/lib/folder-options";
 import {
   canUseAdvancedSearch,
   formatArchivedPeriod,
@@ -37,7 +36,6 @@ const EMPTY_FILTERS: SearchFilterValues = {
   docType: "",
   dateFrom: "",
   dateTo: "",
-  folderId: "",
   ownerId: "",
 };
 
@@ -51,7 +49,6 @@ function readFilters(params: SearchParamReader): SearchFilterValues {
     docType: params.get("doc_type") ?? "",
     dateFrom: params.get("date_from") ?? "",
     dateTo: params.get("date_to") ?? "",
-    folderId: params.get("folder_id") ?? "",
     ownerId: params.get("owner_id") ?? "",
   };
 }
@@ -80,7 +77,6 @@ function buildSearchUrl(values: SearchFilterValues, page: number, includeOwner: 
   if (values.docType.trim()) params.set("doc_type", values.docType.trim());
   if (values.dateFrom) params.set("date_from", values.dateFrom);
   if (values.dateTo) params.set("date_to", values.dateTo);
-  if (values.folderId) params.set("folder_id", values.folderId);
   if (includeOwner && values.ownerId) params.set("owner_id", values.ownerId);
   if (page > 1) params.set("page", String(page));
   return `/busqueda?${params.toString()}`;
@@ -107,9 +103,6 @@ function BusquedaContent() {
   const [owners, setOwners] = useState<User[]>([]);
   const [ownersLoading, setOwnersLoading] = useState(false);
   const [ownersError, setOwnersError] = useState<string | null>(null);
-  const [folders, setFolders] = useState<FolderOption[]>([]);
-  const [foldersLoading, setFoldersLoading] = useState(false);
-  const [foldersError, setFoldersError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -137,7 +130,6 @@ function BusquedaContent() {
           docType: values.docType || null,
           dateFrom: values.dateFrom ? toBackendDate(values.dateFrom, false) : null,
           dateTo: values.dateTo ? toBackendDate(values.dateTo, true) : null,
-          folderId: values.folderId || null,
           ownerId: includeOwner ? values.ownerId || null : null,
           page: requestedPage,
           perPage: SEARCH_PAGE_SIZE,
@@ -217,37 +209,7 @@ function BusquedaContent() {
     };
   }, [staff, user]);
 
-  useEffect(() => {
-    if (!user) return;
-
-    let cancelled = false;
-    const ownerId = staff ? filters.ownerId || null : user.id;
-    setFoldersLoading(true);
-    setFoldersError(null);
-
-    loadFolderTree(ownerId)
-      .then((options) => {
-        if (!cancelled) setFolders(options);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setFolders([]);
-        setFoldersError("No se pudieron cargar las carpetas disponibles.");
-      })
-      .finally(() => {
-        if (!cancelled) setFoldersLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filters.ownerId, staff, user]);
-
   function handleFiltersChange(nextValues: SearchFilterValues) {
-    if (nextValues.ownerId !== filters.ownerId) {
-      setFilters({ ...nextValues, folderId: "" });
-      return;
-    }
     setFilters(nextValues);
   }
 
@@ -298,11 +260,9 @@ function BusquedaContent() {
 
       <SearchFiltersPanel
         values={filters}
-        folders={folders}
         owners={owners}
         showOwnerFilter={staff}
         loading={loading}
-        foldersLoading={foldersLoading}
         ownersLoading={ownersLoading}
         dateError={dateError}
         onChange={handleFiltersChange}
@@ -310,9 +270,9 @@ function BusquedaContent() {
         onClear={clearFilters}
       />
 
-      {(ownersError || foldersError) && (
+      {ownersError && (
         <div className="mb-4 rounded-2xl border border-secondary/40 bg-secondary-container px-4 py-3 text-sm text-on-surface">
-          {ownersError ?? foldersError} Puedes continuar usando los demás filtros.
+          {ownersError} Puedes continuar usando los demás filtros.
         </div>
       )}
 

@@ -24,15 +24,6 @@ export type Paginated<T> = {
   pages: number;
 };
 
-export type Folder = {
-  id: string;
-  name: string;
-  description: string | null;
-  user_id: string;
-  parent_id: string | null;
-  created_at: string;
-};
-
 export type DocumentStatus =
   | "pending"
   | "processing"
@@ -48,7 +39,6 @@ export type DocumentItem = {
   status: DocumentStatus | string;
   user_id: string;
   assigned_to_id: string | null;
-  folder_id: string | null;
   physical_shelf: string | null;
   physical_division: string | null;
   physical_column: string | null;
@@ -255,7 +245,6 @@ export type DocumentUpdateInput = {
   title?: string;
   description?: string | null;
   doc_type?: string | null;
-  folder_id?: string | null;
   physical_shelf?: string | null;
   physical_division?: string | null;
   physical_column?: string | null;

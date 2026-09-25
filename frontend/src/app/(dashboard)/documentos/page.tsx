@@ -807,7 +807,6 @@ function DocumentosContent() {
           key={editingDocument?.id ?? "create"}
           open
           document={editingDocument}
-          ownerId={user.id}
           onClose={handleDocumentModalClose}
           onSaved={handleDocumentSaved}
         />

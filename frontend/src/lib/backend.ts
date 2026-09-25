@@ -3,7 +3,6 @@ import type {
   DocumentItem,
   DocumentDetail,
   DocumentUpdateInput,
-  Folder,
   LocationNode,
   Paginated,
   SearchResult,
@@ -15,7 +14,6 @@ import type {
 export type DocumentListFilters = {
   page?: number;
   perPage?: number;
-  folderId?: string | null;
   statusFilter?: string | null;
   physicalShelf?: string | null;
   physicalDivision?: string | null;
@@ -39,7 +37,6 @@ export type SearchFilters = {
   docType?: string | null;
   dateFrom?: string | null;
   dateTo?: string | null;
-  folderId?: string | null;
   ownerId?: string | null;
   page?: number;
   perPage?: number;
@@ -75,34 +72,6 @@ export const backend = {
       }),
   },
 
-  folders: {
-    list: (parentId?: string | null, ownerId?: string | null) => {
-      const params = new URLSearchParams();
-
-      if (parentId) params.set("parent_id", parentId);
-      if (ownerId) params.set("owner_id", ownerId);
-
-      const query = params.toString();
-
-      return api<Folder[]>(query ? `/folders?${query}` : "/folders");
-    },
-
-    create: (data: {
-      name: string;
-      description?: string | null;
-      parent_id?: string | null;
-    }) =>
-      api<Folder>("/folders", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    remove: (id: string) =>
-      api<void>(`/folders/${id}`, {
-        method: "DELETE",
-      }),
-  },
-
   documents: {
     detail: (id: string) => api<DocumentDetail>(`/documents/${id}`),
 
@@ -111,8 +80,6 @@ export const backend = {
         page: String(filters.page ?? 1),
         per_page: String(filters.perPage ?? 50),
       });
-
-      if (filters.folderId) params.set("folder_id", filters.folderId);
 
       if (filters.statusFilter)
         params.set("status_filter", filters.statusFilter);
@@ -238,7 +205,6 @@ export const backend = {
     if (filters.docType?.trim()) params.set("doc_type", filters.docType.trim());
     if (filters.dateFrom) params.set("date_from", filters.dateFrom);
     if (filters.dateTo) params.set("date_to", filters.dateTo);
-    if (filters.folderId) params.set("folder_id", filters.folderId);
     if (filters.ownerId) params.set("owner_id", filters.ownerId);
     return api<Paginated<SearchResult>>(`/search?${params.toString()}`);
   },

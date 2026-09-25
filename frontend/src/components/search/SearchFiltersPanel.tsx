@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FormField, formControlClass } from "@/components/ui/FormField";
 import { Icon } from "@/components/ui/Icon";
-import type { FolderOption } from "@/lib/folder-options";
 import type { User } from "@/lib/types";
 
 export type SearchFilterValues = {
@@ -9,17 +8,14 @@ export type SearchFilterValues = {
   docType: string;
   dateFrom: string;
   dateTo: string;
-  folderId: string;
   ownerId: string;
 };
 
 type SearchFiltersPanelProps = {
   values: SearchFilterValues;
-  folders: FolderOption[];
   owners: User[];
   showOwnerFilter: boolean;
   loading: boolean;
-  foldersLoading: boolean;
   ownersLoading: boolean;
   dateError: string | null;
   onChange: (values: SearchFilterValues) => void;
@@ -29,11 +25,9 @@ type SearchFiltersPanelProps = {
 
 export function SearchFiltersPanel({
   values,
-  folders,
   owners,
   showOwnerFilter,
   loading,
-  foldersLoading,
   ownersLoading,
   dateError,
   onChange,
@@ -44,7 +38,6 @@ export function SearchFiltersPanel({
     values.docType,
     values.dateFrom,
     values.dateTo,
-    values.folderId,
     showOwnerFilter ? values.ownerId : "",
   ].filter(Boolean).length;
   const hasValues = Boolean(values.query.trim() || activeAdvancedFilters);
@@ -208,30 +201,6 @@ export function SearchFiltersPanel({
                 </select>
               </FormField>
             )}
-
-            <FormField
-              id="search-folder"
-              label="Carpeta"
-              hint={foldersLoading ? "Cargando carpetas..." : undefined}
-              className={
-                showOwnerFilter ? "sm:col-span-2 lg:col-span-2" : "sm:col-span-2 lg:col-span-3"
-              }
-            >
-              <select
-                id="search-folder"
-                value={values.folderId}
-                onChange={(event) => update("folderId", event.target.value)}
-                disabled={foldersLoading}
-                className={formControlClass}
-              >
-                <option value="">Todas las carpetas</option>
-                {folders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.label}
-                  </option>
-                ))}
-              </select>
-            </FormField>
           </div>
 
           <div className="mt-5 flex justify-end border-t border-outline-variant pt-4">
