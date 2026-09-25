@@ -3,6 +3,7 @@ uvicorn[standard]>=0.23
 pydantic[email]>=2.0
 pydantic-settings>=2.0
 sqlalchemy>=2.0
+greenlet>=3.0
 asyncpg>=0.29
 alembic>=1.13
 celery>=5.3
