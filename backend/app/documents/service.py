@@ -11,7 +11,6 @@ from app.auth.permissions import is_staff
 from app.config import get_settings
 from app.documents.models import AuditLog, Document, ExtractedText, GeneratedPdf, OriginalImage
 from app.documents.schemas import DocumentCreate, DocumentUpdate
-from app.folders.models import Folder
 from app.storage.minio_client import delete_object, download_bytes, upload_bytes
 
 settings = get_settings()
@@ -36,10 +35,6 @@ _CONTENT_TYPE_BY_EXTENSION = {
     "bmp": "image/bmp",
     "pdf": "application/pdf",
 }
-
-
-class InvalidFolderError(Exception):
-    pass
 
 
 class InvalidFileError(Exception):
@@ -108,13 +103,6 @@ async def attach_file_to_document(
     return original_image
 
 
-async def _folder_belongs_to(db: AsyncSession, folder_id: uuid.UUID, owner_user_id: uuid.UUID) -> bool:
-    result = await db.execute(
-        select(Folder.id).where(Folder.id == folder_id, Folder.user_id == owner_user_id)
-    )
-    return result.scalar_one_or_none() is not None
-
-
 class InvalidAssigneeError(Exception):
     pass
 
@@ -153,7 +141,6 @@ async def get_document(
 async def list_documents(
     db: AsyncSession,
     requesting_user: User,
-    folder_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     doc_type: str | None = None,
     physical_shelf: str | None = None,
@@ -192,9 +179,6 @@ async def list_documents(
     if assigned_to_id is not None:
         query = query.where(Document.assigned_to_id == assigned_to_id)
         count_query = count_query.where(Document.assigned_to_id == assigned_to_id)
-    if folder_id is not None:
-        query = query.where(Document.folder_id == folder_id)
-        count_query = count_query.where(Document.folder_id == folder_id)
     if status_filter is not None:
         query = query.where(Document.status == status_filter)
         count_query = count_query.where(Document.status == status_filter)
@@ -278,8 +262,6 @@ async def create_document(
     data: DocumentCreate,
     requester_is_staff: bool = False,
 ) -> Document:
-    if data.folder_id is not None and not await _folder_belongs_to(db, data.folder_id, owner_user_id):
-        raise InvalidFolderError("La carpeta no existe o no te pertenece")
     if data.assigned_to_id is not None:
         await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
 
@@ -287,7 +269,6 @@ async def create_document(
         title=data.title,
         description=data.description,
         doc_type=data.doc_type,
-        folder_id=data.folder_id,
         physical_shelf=data.physical_shelf,
         physical_division=data.physical_division,
         physical_column=data.physical_column,
@@ -326,9 +307,6 @@ async def update_document(
 ) -> Document:
     fields = data.model_fields_set
 
-    if "folder_id" in fields and data.folder_id is not None:
-        if not await _folder_belongs_to(db, data.folder_id, document.user_id):
-            raise InvalidFolderError("La carpeta no existe o no pertenece al mismo propietario")
     if "assigned_to_id" in fields:
         if data.assigned_to_id is not None:
             await _validate_assignee(db, requester_is_staff, data.assigned_to_id)
@@ -341,8 +319,6 @@ async def update_document(
         document.description = data.description
     if "doc_type" in fields:
         document.doc_type = data.doc_type
-    if "folder_id" in fields:
-        document.folder_id = data.folder_id
     if "assigned_to_id" in fields:
         document.assigned_to_id = data.assigned_to_id
     if "physical_shelf" in fields:
@@ -475,7 +451,6 @@ async def search_documents(
     doc_type: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
-    folder_id: uuid.UUID | None = None,
     owner_id: uuid.UUID | None = None,
     page: int = 1,
     per_page: int = 20,
@@ -498,8 +473,6 @@ async def search_documents(
 
     if doc_type is not None:
         base_query = base_query.where(Document.doc_type == doc_type)
-    if folder_id is not None:
-        base_query = base_query.where(Document.folder_id == folder_id)
     if date_from is not None:
         base_query = base_query.where(Document.created_at >= date_from)
     if date_to is not None:

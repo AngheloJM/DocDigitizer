@@ -10,7 +10,6 @@ from app.auth import models as auth_models  # noqa: F401
 from app.config import get_settings
 from app.database import SessionLocal, engine
 from app.documents.models import Document, ExtractedText, GeneratedPdf, OriginalImage
-from app.folders import models as folders_models  # noqa: F401
 from app.processing.pipeline import process_image_bytes
 from app.storage.minio_client import download_bytes, upload_bytes
 from app.worker.celery_app import TASK_SOFT_TIME_LIMIT_SECONDS, celery_app

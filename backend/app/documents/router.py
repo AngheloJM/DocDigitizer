@@ -21,7 +21,6 @@ from app.documents.service import (
     DocumentAlreadyHasFileError,
     InvalidAssigneeError,
     InvalidFileError,
-    InvalidFolderError,
     NoDownloadableFileError,
     NoOriginalFileError,
 )
@@ -82,8 +81,6 @@ def _client_ip(request: Request) -> str | None:
 async def create_document(data: DocumentCreate, db: DbSession, current_user: CurrentUser, request: Request):
     try:
         document = await service.create_document(db, current_user.id, data, is_staff(current_user))
-    except InvalidFolderError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except InvalidAssigneeError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
@@ -107,20 +104,17 @@ async def upload_document(
     title: str = Form(...),
     description: str | None = Form(None),
     doc_type: str | None = Form(None),
-    folder_id: uuid.UUID | None = Form(None),
 ):
     await _enforce_upload_rate_limit(current_user.id)
     _reject_if_declared_too_large(request)
 
     file_bytes = await file.read()
-    data = DocumentCreate(title=title, description=description, doc_type=doc_type, folder_id=folder_id)
+    data = DocumentCreate(title=title, description=description, doc_type=doc_type)
 
     try:
         document = await service.create_document_with_file(
             db, current_user.id, data, file_bytes, file.filename, is_staff(current_user)
         )
-    except InvalidFolderError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except InvalidFileError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
@@ -184,7 +178,6 @@ async def upload_document_file(
 async def list_documents(
     db: DbSession,
     current_user: CurrentUser,
-    folder_id: uuid.UUID | None = None,
     status_filter: str | None = None,
     doc_type: str | None = None,
     physical_shelf: str | None = None,
@@ -203,7 +196,6 @@ async def list_documents(
     items, total = await service.list_documents(
         db,
         current_user,
-        folder_id,
         status_filter,
         doc_type,
         physical_shelf,
@@ -335,8 +327,6 @@ async def update_document(
 
     try:
         return await service.update_document(db, document, data, is_staff(current_user))
-    except InvalidFolderError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
     except InvalidAssigneeError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error))
 
