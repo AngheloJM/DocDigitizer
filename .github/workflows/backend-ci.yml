@@ -67,16 +67,20 @@ jobs:
       - name: Levantar MinIO
         run: |
           docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+            --user root \
             -e MINIO_ROOT_USER=ci-access-key \
             -e MINIO_ROOT_PASSWORD=ci-secret-key \
             alpine/minio:latest-release server /data --console-address ":9001"
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9000/minio/health/live; then
               echo "MinIO listo"
-              break
+              exit 0
             fi
             sleep 1
           done
+          echo "::error::MinIO no respondio a tiempo"
+          docker logs minio
+          exit 1
 
       - name: Instalar dependencias
         working-directory: backend

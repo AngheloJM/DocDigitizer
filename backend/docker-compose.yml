@@ -20,6 +20,7 @@ services:
   minio:
     image: alpine/minio:latest-release
     container_name: docdigitizer-minio-archivos-pdf-imagenes
+    user: root
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-changeme}
