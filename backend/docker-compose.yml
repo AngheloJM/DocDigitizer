@@ -18,7 +18,7 @@ services:
       - "6379:6379"
 
   minio:
-    image: quay.io/minio/minio
+    image: alpine/minio:latest-release
     container_name: docdigitizer-minio-archivos-pdf-imagenes
     command: server /data --console-address ":9001"
     environment:

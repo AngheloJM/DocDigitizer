@@ -69,7 +69,7 @@ jobs:
           docker run -d --name minio -p 9000:9000 -p 9001:9001 \
             -e MINIO_ROOT_USER=ci-access-key \
             -e MINIO_ROOT_PASSWORD=ci-secret-key \
-            quay.io/minio/minio server /data --console-address ":9001"
+            alpine/minio:latest-release server /data --console-address ":9001"
           for i in $(seq 1 30); do
             if curl -sf http://localhost:9000/minio/health/live; then
               echo "MinIO listo"
